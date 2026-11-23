@@ -4,7 +4,7 @@ export const TIME = 600;      // duração da partida em segundos (10 min)
 export const NS = 50;         // total de cobras: 10 selecionáveis (humanos) + 40 bots
 export const TICK = 40;       // ms por atualização do servidor (25 por segundo)
 // 15 cabeças (public/cobra1.png ... cobra15.png). Cada cabeça tem um nome padrão, que aparece em cima da cobra; o jogador pode digitar outro nome no lobby.
-export const HEAD_NAMES = ["André", "Allan", "Thiago", "Matheus", "Débora", "Fischer", "Samoso", "Ladrão", "Esbanja", "Homem com Down", "Bolsomito", "Virgem (Urach)", "Campopiano", "Manoel Gomes", "Comedor de Loiras", "Luva de Pedreiro", "Mia Khalifa", "Kid Bengala","Inri Cristo","Patixá", "Inês Brasil", "Dândara"]; // TROQUE AQUI os nomes (a ordem é a mesma de cobra1.png, cobra2.png...)
+export const HEAD_NAMES = ["André", "Allan", "Thiago", "Matheus", "Débora", "Fischer", "Samoso", "Ladrão", "Esbanja", "Homem com Down", "Bolsomito", "Virgem (Urach)", "Campopiano", "Caneta Azul", "Comedor de Loiras", "Luva de Pedreiro","Mama Khalifa", "Kid Bengala", "Inri Cristo", "Patixá", "Inês Brasil", "Dandara","Davi Brito","Capivara", "Bandido", "Menina da Bota", "HAHAHAH","Dilma","Marina Silva", "Fernanda"]; // TROQUE AQUI os nomes (a ordem é a mesma de cobra1.png, cobra2.png...)
 export const NH = HEAD_NAMES.length; // quantidade de cabeças
 export const NSEL = 10;           // quantos retângulos (jogadores simultâneos, máximo 10; no máximo NH, pois cada um usa uma cabeça diferente)
 export const HEAD_UNIQUE = true;  // true = duas pessoas não podem usar a mesma cabeça ao mesmo tempo
@@ -100,7 +100,7 @@ export const BOT_NAMES_EXTRA = [
     "Titaco Opau",
     "Tokoku Kosano",
     "Gozaro Nakara",
-    "Komias Toba",
+    "Komias Tobas",
     "Seucu Miama",
     "Tifuro Nakombi",
     "Consultor Macaco",
@@ -163,12 +163,14 @@ export const BOT_NAMES2 = [
     "Mia Arregassa",
     "Elma Maria",
     "Oscar Alho",
-    "Kemel Pinto"
+    "Kemel Pinto",
+    "Pamela Uceta",
+    "Juninho Matador de Porco"
 ];
 
 export const DROP_V = 4;     // valor das bolinhas verdes (comida normal vale 1 ou 2, então a verde vale o dobro da maior)
 export const LIVES = 3;      // quantas vezes cada cobra selecionável (controlada por pessoa) pode renascer
-export const BODY_NAMES = ["Coral", "Jararaca", "Preta", "Branca", "Arco-íris", "Vermelha", "Laranja", "Amarela", "Limão", "Verde", "Turquesa", "Azul", "Roxa", "Rosa", "Marrom", "Sucuri", "Piton", "Mamba", "Verde e Amarelo", "Verde Néon", "Quadriculado"]; // 21 corpos (desenhos em src/draw.js, mesma ordem)
+export const BODY_NAMES = ["Piton Verde", "Piton Branca", "Piton Marrom", "Piton Cinza", "Piton Azul", "Piton Vermelha", "Jequeana", "Verde e Preta", "Piton Dourada", "Losangos Preto e Branco", "Escamas Amarelas", "Laranjuda", "Branca", "Cobra Roupa de Vó", "Verde Preta e Amarela", "Coral"];
 export const NB = BODY_NAMES.length;
 export const CONDOMS = 3;     // quantos itens de camisinha existem no mapa
 export const CONDOM_HITS = 2;  // toques que a camisinha aguenta antes de estourar (1 toque protege, o 2º rasga)
@@ -192,8 +194,9 @@ export const BODY_MAX = 12000;  // comprimento máximo do corpo (px). Cobra gran
 // --- cards flutuantes (5 tipos, 1 de cada no mapa; só jogadores pegam) ---
 export const CARDS_POR_TIPO = 3;     // quantos cards de cada tipo (diminui / cresce) existem no mapa
 export const CARD_BACK = 20;         // segundos para o card reaparecer em outro lugar depois de pego
-export const CARD_START_CM = .1;     // tamanho com que a cobra começa o jogo (card 1 encolhe até aqui)
-export const CARD_SHRINK_SECS = 8;   // card 1: tempo para voltar ao tamanho inicial (qualquer tamanho: cobra maior encolhe mais rápido, sempre de forma suave)
+export const CARD_START_CM = .1;     // tamanho mínimo que a cobra pode ter por causa do card 1
+export const CARD_SHRINK_TO = .4;    // card 1: a cobra encolhe para 40% do tamanho que tinha ao pegar o card
+export const CARD_SHRINK_SECS = 8;   // card 1: tempo para encolher (qualquer tamanho; sempre de forma suave)
 export const CARD_GROW_TIERS = [[20, 3], [100, 2], [Infinity, 1.3]];   // card 2: [até X cm, multiplicador]. Até 20 cm = x3 (20 vira 60); acima de 20 até 100 = x2 (dobra); acima de 100 = x1.3 (+30%)
 export const CARD_GROW_SECS = 5;     // card 2: tempo total do crescimento (igual para qualquer tamanho)
 export const CARD_GROW_ACCEL = 2;    // card 2: 1 = crescimento constante; 2 = vai acelerando (começa devagar e termina rápido); 3 = acelera ainda mais
@@ -206,8 +209,14 @@ export const VIEW_FULL_CM = 100;    // até este tamanho (cm) a câmera mostra a
 export const VIEW_STEP_CM = 100;    // a cada quantos cm a parte visível do corpo diminui
 export const VIEW_LOSS = .2;        // quanto diminui a cada passo (0.2 = 100% em 100cm, 80% em 200cm, 60% em 300cm, 40% em 400cm...)
 export const VIEW_MIN_FRAC = 1 / 3; // nunca mostra menos que isso do corpo (1/3 da cobra)
-export const VIEW_MAX_SPAN = 3000;  // limite (px) da área que a câmera abre; protege o servidor/rede em cobras gigantes
+export const VIEW_MAX_SPAN = 1500;  // limite (px) da área que a câmera abre; protege o servidor/rede em cobras gigantes
 const VIEW_FRAC = cm => cm <= VIEW_FULL_CM ? 1 : Math.max(VIEW_MIN_FRAC, 1 - VIEW_LOSS * (cm - VIEW_FULL_CM) / VIEW_STEP_CM);
 // tabela de "tamanho (px) que precisa caber na menor dimensão da tela" por cm; com máximo acumulado para a câmera nunca reaproximar enquanto a cobra cresce
 const VIEW_TAB = []; for (let c = 0, m = 0; c <= 3000; c++) { m = Math.max(m, VIEW_FRAC(c) * (14 + c * 10)); VIEW_TAB.push(Math.min(m, VIEW_MAX_SPAN)); }
 export const VIEW_SPAN = cm => VIEW_TAB[Math.min(3000, Math.max(0, Math.round(cm)))];
+
+// --- comida concentrada em pontos (sorteados a cada partida) ---
+// [quantos pontos, peso (quanta comida cada um recebe), raio em px]: 7 pontos MUITO cheios, 10 médios, 25 pequenos, 50 quase vazios. Posições e pesos (±25%) são sorteados a cada partida.
+export const FOOD_HOT = [[10, 10, 520], [20, 5, 460], [50, 2, 380], [10, .6, 320]];
+export const FOOD_BG = .03;              // fração da comida espalhada pelo mapa todo (0 = só nos pontos)
+export const FOOD_HOT_MOVE = [90, 150];  // a cada tantos segundos (sorteado entre os dois valores) um ponto muda de lugar

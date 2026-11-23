@@ -1,11 +1,26 @@
-import { WD, TIME, NS, NSEL, NH, HEAD_NAMES, BOT_NAMES, BOT_NAMES2, BOT_NAMES_EXTRA, LIVES, NB, CONDOMS, CONDOM_HITS, TAPER, DROP_V, INV_TIME, PILLS, PILL_STIFF, PILL_MAX_CM, PILL_BACK, TURN_R0, TURN_RK, EAT_PAD, MAX_DROPS, BODY_MAX, CARD_BACK, CARD_START_CM, CARD_SHRINK_SECS, CARD_GROW_TIERS, CARD_GROW_SECS, CARD_GROW_ACCEL, CARDS_POR_TIPO, CARD_BOOST_BELOW_CM, CARD_BOOST_TO_CM, CARD_BOOST_SECS, VIEW_SPAN } from "../shared/config.js";
+import { WD, TIME, NS, NSEL, NH, HEAD_NAMES, BOT_NAMES, BOT_NAMES2, BOT_NAMES_EXTRA, LIVES, NB, CONDOMS, CONDOM_HITS, TAPER, DROP_V, INV_TIME, PILLS, PILL_STIFF, PILL_MAX_CM, PILL_BACK, TURN_R0, TURN_RK, EAT_PAD, MAX_DROPS, BODY_MAX, CARD_BACK, CARD_START_CM, CARD_SHRINK_SECS, CARD_GROW_TIERS, FOOD_HOT, FOOD_BG, FOOD_HOT_MOVE, CARD_SHRINK_TO, CARD_GROW_SECS, CARD_GROW_ACCEL, CARDS_POR_TIPO, CARD_BOOST_BELOW_CM, CARD_BOOST_TO_CM, CARD_BOOST_SECS, VIEW_SPAN } from "../shared/config.js";
+import { CAROL, isCarol, carolProf, carolBall, CAROL_LEN } from "../shared/carol.js";
 
+// card 3 (furacão): chance de a partida ter furacão, quantos cards no máximo (sorteia de 1 até HUR_MAX, cada um num momento diferente), janela de tempo em que aparecem (s), tempo de voo, tempo total sem controle, fração do tamanho que sobra ao bater no canto
+const HUR_TESTE = false;   // true = MODO TESTE: 8 cards de furacão desde o começo de TODA partida (voltam 15 s depois de pegos). Mude para false para voltar ao normal (30% das partidas, 1 a 3 cards)
+const HUR_CHANCE = .30, HUR_MAX = 3, HUR_AT = [60, 540], HUR_FLY = 2.5, HUR_STUN = 3, HUR_KEEP = .2;
+// MOMENTOS DE AGRESSIVIDADE: de tempos em tempos uma parte dos bots caça os jogadores (ignora comida, não foge, usa turbo, vê de mais longe e tenta cortar a frente)
+const AG_EVERY = [25, 70];   // intervalo (s) entre um momento e o próximo, sorteado
+const AG_DUR = [12, 25];     // duração (s) de cada momento, sorteada
+const AG_FRAC = .4;          // fração dos bots que ficam agressivos em cada momento (sorteados a cada vez)
+const AG_RANGE = 3200;       // de que distância (px) eles enxergam um jogador para caçar
+const FOOD_K = .45;      // QUANTIDADE DE COMIDA no mapa (1 = como era antes; .45 = menos da metade). Menor = mais disputada
+const FOOD_REFILL = 3;   // quantas comidas novas aparecem por tick (25 ticks por segundo) quando está abaixo do total. Menor = a comida demora mais a repor
 const BIG_FROM = 100, BIG_FULL = 200, BIG_BONUS = .5;   // aceleração das cobras grandes (cm de onde começa, cm onde chega ao máximo, bônus máximo = 50%)
-export function createGame(human, bodies = [], mode = "time", heads = [], pnames = []) {
+export function createGame(human, bodies = [], mode = "time", heads = [], pnames = [], guests = [], teams = null) {
+  const TEAMON = !!teams;   // partida por equipe: teams[i] = 0 ou 1 (equipe de cada vaga); bots nunca têm equipe
   const TM = mode === "time";   // "time": 10 min, renasce sem limite (bots também), vale o tamanho no fim | "elim": sem tempo, 3 vidas, bots não renascem, vence o último humano vivo
   let elimN = 0;   // quantos humanos já foram eliminados de vez (modo elim)
   const rnd = n => (Math.random() - .5) * n;
-  const R = s => 10 + Math.min(s.cm, 30) * 1.5 + Math.max(0, s.cm - 30) * .3;
+    const R = s => { const x = s.cm / 4.76; return 10 + Math.min(x, 30) * 1.5 + Math.max(0, x - 30) * .3; };   // espessura cresce 4,76x mais devagar (a grossura que era de 42 cm agora é de ~200 cm)
+  const RH = s => R(s) * (s.carol ? CAROL.HEAD : 1);   // raio da cabeça (a MC Carol tem cabeça maior)
+  const RB = s => s.carol ? carolBall(s.cm) : R(s);   // raio da parte mais larga do corpo (a MC Carol: a bola)
+  const prf = (o, k) => o.carol ? carolProf(k / 3 / Math.max(1, o.nn - 1)) : TAPER(k / 3, o.nn);   // espessura relativa do corpo no ponto k
   const L = s => Math.max(8, 14 + (s.cm * 10 | 0));
   // comida guardada em grade de células (rápido para buscar perto)
   const CS = 200, grid = new Map();
@@ -17,8 +32,22 @@ export function createGame(human, bodies = [], mode = "time", heads = [], pnames
       y0 = Math.max(0, (y + o - r) / CS | 0), y1 = Math.min(52, (y + o + r) / CS | 0);
     for (let a = x0; a <= x1; a++) for (let b = y0; b <= y1; b++) { const c = grid.get(a * 100 + b); if (c) fn(c); }
   };
-  const nf = () => ({ x: rnd(WD - 100), y: rnd(WD - 100), v: 1 + (Math.random() * 2 | 0), e: Math.random() * 4 | 0 });
-  for (let i = 0; i < 1800; i++) add(nf());
+  // pontos de comida: cada um tem um peso (muito / médio / pouco / quase nada) e um raio; posições sorteadas a cada partida e um ponto muda de lugar de tempos em tempos
+  const HOT = [], hpos = () => ({ x: rnd(WD - 1400), y: rnd(WD - 1400) });
+  for (const [n, w, r] of FOOD_HOT) for (let i = 0; i < n; i++) HOT.push({ ...hpos(), w: w * (.75 + Math.random() * .5), r });
+  let hotTot = HOT.reduce((a, h) => a + h.w, 0), hm = FOOD_HOT_MOVE[0] + Math.random() * (FOOD_HOT_MOVE[1] - FOOD_HOT_MOVE[0]);
+  const lim = WD / 2 - 50;
+  const nf = () => {
+    let x, y;
+    if (Math.random() < FOOD_BG) { x = rnd(WD - 100); y = rnd(WD - 100); }
+    else {
+      let t = Math.random() * hotTot, h = HOT[HOT.length - 1]; for (const q of HOT) { t -= q.w; if (t <= 0) { h = q; break; } }
+      const a = Math.random() * 6.2832, d = h.r * Math.pow(Math.random(), .8);
+      x = Math.max(-lim, Math.min(lim, h.x + Math.cos(a) * d)); y = Math.max(-lim, Math.min(lim, h.y + Math.cos(a - 1.5708) * d));
+    }
+    return { x, y, v: 1 + (Math.random() * 2 | 0), e: Math.random() * 4 | 0 };
+  };
+  for (let i = 0; i < Math.round(1800 * FOOD_K); i++) add(nf());
 
   // cabeça e nome de cada uma das cobras selecionáveis: jogadores usam a escolha deles; as vagas sem jogador (bots) ganham cabeças que ninguém está usando
   const hdUsed = new Set(); for (let i = 0; i < NSEL; i++) if (human[i]) hdUsed.add(heads[i]);
@@ -32,13 +61,18 @@ export function createGame(human, bodies = [], mode = "time", heads = [], pnames
   for (let k = BN.length - 1; k > 0; k--) { const j = Math.random() * (k + 1) | 0; [BN[k], BN[j]] = [BN[j], BN[k]]; }
   const mk = i => {
     const x = rnd(WD * .6), y = rnd(WD * .6);
-    const s = { i, sk: i < NSEL ? (bodies[i] ?? (i * 2) % NB) : Math.random() * NB | 0, nm: i < NSEL ? (human[i] && pnames[i] ? pnames[i] : HEAD_NAMES[HD[i]]) : BN[(i - NSEL) % BN.length],
+    const car = isCarol(i);
+    const s = { i, carol: car, ch: 0, cg: 0, at: car ? (CAROL.TEST ? .5 + (i % 4) * .4 : CAROL.APPEAR[0] + Math.random() * (CAROL.APPEAR[1] - CAROL.APPEAR[0])) : 0, cap: false,   // carol: ch = batidas, cg = espera entre batidas, at = momento em que aparece, cap = já apareceu
+      sk: car ? CAROL.SKIN : i < NSEL ? (bodies[i] ?? (i * 2) % NB) : Math.random() * NB | 0, nm: car ? CAROL.NAME : i < NSEL ? (human[i] && pnames[i] ? pnames[i] : HEAD_NAMES[HD[i]]) : BN[(i - NSEL) % BN.length],
       x, y, a: Math.random() * 6.28, ta: 0, cm: .1, segs: [],
-      bot: !(i < NSEL && human[i]), lives: !TM && i < NSEL && human[i] ? LIVES : 0, hp: 0, gr: 0, ex: 0, inv: 0, stf: 0, best: 0, alive: true, t: 0, boost: false, cr: false, inp: { a: 0, b: false, k: false }, lx: x, ly: y, fin: 0, dd: 0, tr: [], t0: 0, fx: null, mk: 0, rr: 10, nn: 5, bx0: 0, bx1: 0, by0: 0, by1: 0 };
+      bot: !(i < NSEL && human[i]), guest: i < NSEL && !!human[i] && !!guests[i], team: TEAMON && i < NSEL && human[i] && teams[i] >= 0 ? teams[i] : -1, lives: !TM && i < NSEL && human[i] ? LIVES : 0, hp: 0, gr: 0, ex: 0, inv: 0, stf: 0, best: 0, alive: !car, t: 0, boost: false, cr: false, inp: { a: 0, b: false, k: false }, lx: x, ly: y, fin: 0, dd: 0, tr: [], t0: 0, fx: null, mk: 0, rr: 10, nn: 5, bx0: 0, bx1: 0, by0: 0, by1: 0 };
     for (let j = 0; j < 14; j++) s.segs.push({ x, y });
     return s;
   };
   const sn = []; for (let i = 0; i < NS; i++) sn.push(mk(i));
+  const everT = new Set(sn.filter(s => s.team >= 0).map(s => s.team));   // equipes que já tiveram jogador nesta partida
+  const tsc = s => TM ? (s.alive ? s.cm : 0) : (s.tot || 0) + (s.alive ? s.cm : 0);   // pontos de uma cobra para a equipe: por tempo = tamanho atual; eliminação = soma das vidas
+  const tsum = () => { const a = [0, 0]; for (const s of sn) if (s.team >= 0) a[s.team] += tsc(s); return a; };
   const respawnQ = [];
   // CORPO = rastro da cabeça: a cabeça deixa uma trilha de pontos e cada segmento fica a uma distância fixa (gap) ao longo dela.
   // Assim o corpo INTEIRO acompanha a curva (antes cada segmento só andava quando o da frente esticava, e o rabo das cobras grandes ficava parado)
@@ -79,13 +113,42 @@ export function createGame(human, bodies = [], mode = "time", heads = [], pnames
   const pills = [], npill = () => ({ x: rnd(WD - 600), y: rnd(WD - 600), gone: false, back: 0 });   // pílulas Tadala
   for (let i = 0; i < PILLS; i++) pills.push(npill());
   // cards flutuantes: t = 0 diminui até o tamanho inicial (imagem 1), t = 1 cresce 50% (imagem 2); CARDS_POR_TIPO de cada no mapa
-  const ncard = (t, id) => ({ x: rnd(WD - 600), y: rnd(WD - 600), t, id, gone: false, back: 0 });
+  // posição dos cards: das 14 candidatas sorteadas fica a mais distante dos outros cards (assim não aparecem juntos e se espalham pelo mapa todo)
+  const ncard = (t, id) => {
+    let bx = 0, by = 0, bd = -1;
+    for (let q = 0; q < 14; q++) { const x = rnd(WD - 600), y = rnd(WD - 600); let md = 1e18; for (const o of cards) if (!o.gone && o.id !== id) md = Math.min(md, (o.x - x) ** 2 + (o.y - y) ** 2); if (md > bd) { bd = md; bx = x; by = y; } }
+    return { x: bx, y: by, t, id, gone: false, back: 0 };
+  };
   const cards = []; for (let t = 0; t < 2; t++) for (let k = 0; k < CARDS_POR_TIPO; k++) cards.push(ncard(t, cards.length));
-  let el = 0, ag = 0, evT = 20 + Math.random() * 30, fph = 30, ftg = 1800, cl = 12, dc = 0;
-  const G = { sn, sk: sn.map(s => s.sk), hd: HD, names: sn.map(s => s.nm), over: false, dead: [], eats: [], pk: [], pop: [], hits: [], pp: [], cp: [] };
+  let el = 0, ag = 0, evT = 20 + Math.random() * 30, fph = 30, ftg = Math.round(1800 * FOOD_K), cl = 12, dc = 0, mev = 70 + Math.random() * 40, rain = 0, rp = [], ices = [];   // mev = tempo até a próxima chuva de sorvete; rain = segundos restantes; rp = os 2 pontos do mapa onde ela cai; ices = sorvetes no chão (somem depois de um tempo)
+  const c3s = []; const c3T = HUR_TESTE ? Array(8).fill(0) : Math.random() < HUR_CHANCE ? Array.from({ length: 1 + (Math.random() * HUR_MAX | 0) }, () => HUR_AT[0] + Math.random() * (HUR_AT[1] - HUR_AT[0])).sort((a, b) => a - b) : [];   // momentos em que cada card aparece (cada um em um momento diferente da partida)   // card3: aparece UMA vez, em qualquer lugar, no momento sorteado
+
+    // nascimento longe dos jogadores humanos: sorteia até 40 pontos e usa o primeiro com folga de SPAWN_FAR px da cabeça e do corpo de qualquer humano vivo (se nenhum servir, o mais distante)
+  const SPAWN_FAR = 1800;
+  const spawnAt = me => {
+    let bx = 0, by = 0, bd = -1;
+    for (let t = 0; t < 40; t++) {
+      const x = rnd(WD * .6), y = rnd(WD * .6); let d = 1e9;
+      for (const h of sn) { if (h === me || h.bot || !h.alive) continue; d = Math.min(d, Math.hypot(h.x - x, h.y - y)); for (let k = 0; k < h.segs.length; k += 5) d = Math.min(d, Math.hypot(h.segs[k].x - x, h.segs[k].y - y)); }
+      if (d > bd) { bd = d; bx = x; by = y; } if (d >= SPAWN_FAR) break;
+    }
+    return [bx, by];
+  };
+  for (const s of sn) if (s.bot && !s.carol) { const [px, py] = spawnAt(s); s.x = s.lx = px; s.y = s.ly = py; for (const q of s.segs) { q.x = px; q.y = py; } }   // bots do começo da partida também nascem longe dos humanos
+  const G = { team: TEAMON, hu: -1, hc: [], sn, sk: sn.map(s => s.sk), hd: HD, names: sn.map(s => s.nm), over: false, dead: [], eats: [], pk: [], pop: [], hits: [], pp: [], cp: [], boom: [] };
+  const flyers = [];   // bolinhas da explosão da MC Carol ainda no ar
 
   const die = s => {
-    s.alive = false; G.dead.push([s.x | 0, s.y | 0, s.i]); s.fin = s.cm; s.best = Math.max(s.best, s.cm); s.hp = 0; s.gr = 0; s.ex = 0; s.inv = 0; s.stf = 0; s.fx = null; s.dd = dc++; s.lx = s.x; s.ly = s.y;
+    s.hv = null; s.alive = false; G.dead.push([s.x | 0, s.y | 0, s.i]); s.tot = (s.tot || 0) + s.cm; s.fin = s.cm;   // tot: soma dos tamanhos de cada vida já encerrada (ranking final do modo eliminação)
+     s.best = Math.max(s.best, s.cm); s.hp = 0; s.gr = 0; s.ex = 0; s.inv = 0; s.stf = 0; s.fx = null; s.dd = dc++; s.lx = s.x; s.ly = s.y;
+    if (s.carol) {   // MC Carol: EXPLODE. As bolinhas verdes e as amarelas voam para longe (ficam em "flyers" até pousar) e ela nunca renasce
+      G.boom.push([s.x | 0, s.y | 0, s.i]);
+      const tot = Math.ceil(L(s) / 3), cnt = Math.min(tot, MAX_DROPS), vv = DROP_V * tot / cnt, sg = s.segs, md = sg.length, lm = WD / 2 - 60, cl = v => Math.max(-lm, Math.min(lm, v));
+      const fly = (x, y, v, yl) => { const a = Math.random() * 6.2832, d = CAROL.FLY[0] + Math.pow(Math.random(), .8) * (CAROL.FLY[1] - CAROL.FLY[0]); flyers.push({ x0: x, y0: y, x1: cl(x + Math.cos(a) * d), y1: cl(y + Math.sin(a) * d), t0: el, dur: CAROL.FLY_T * (.8 + Math.random() * .4), v, yl }); };
+      for (let j = 0; j < cnt; j++) { const q = sg[Math.min(md - 1, (j * md / cnt) | 0)]; fly(q.x + rnd(20), q.y + rnd(20), vv, 0); }
+      for (let j = 0; j < CAROL.YELLOW; j++) { const q = sg[Math.min(md - 1, (md * (.1 + Math.random() * .5)) | 0)]; fly(q.x + rnd(60), q.y + rnd(60), vv * CAROL.YV, 1); }
+      return;
+    }
     // bolinhas verdes: no máximo MAX_DROPS por morte; o valor total é o mesmo de antes (cada bolinha vale mais quando a cobra era gigante)
     { const tot = Math.ceil(L(s) / 3), cnt = Math.min(tot, MAX_DROPS), vv = DROP_V * tot / cnt, sgd = s.segs, md = sgd.length;
       for (let j = 0; j < cnt; j++) { const q = sgd[Math.min(md - 1, (j * md / cnt) | 0)]; drops.push(add({ x: q.x + rnd(20), y: q.y + rnd(20), v: vv, d: el + 1, e: 0 })); } }
@@ -95,27 +158,46 @@ export function createGame(human, bodies = [], mode = "time", heads = [], pnames
   };
   // renasce a cobra pequena (mesmo tamanho inicial de mk) em posição aleatória
   const respawn = s => {
-    s.x = s.lx = rnd(WD * .6); s.y = s.ly = rnd(WD * .6); s.a = Math.random() * 6.28; s.ta = s.a; s.cm = .1; s.boost = false; s.t = 0; s.hp = 0; s.gr = 0; s.ex = 0; s.inv = INV_TIME; s.stf = 0; s.fx = null; s.alive = true;   // inv: 3 piscadas sem poder morrer
+    { const [px, py] = spawnAt(s); s.x = s.lx = px; s.y = s.ly = py; }; s.a = Math.random() * 6.28; s.ta = s.a; s.cm = .1; s.boost = false; s.t = 0; s.hp = 0; s.gr = 0; s.ex = 0; s.inv = INV_TIME; s.stf = 0; s.fx = null; s.hv = null; s.alive = true;   // inv: 3 piscadas sem poder morrer
     s.segs = []; s.tr = []; s.t0 = 0; for (let j = 0; j < 14; j++) s.segs.push({ x: s.x, y: s.y });
   };
 
   G.step = dt => {
-    G.dead = []; G.eats = []; G.pk = []; G.pop = []; G.hits = []; G.pp = []; G.cp = [];
+    G.hu = -1; G.hc = []; G.dead = []; G.eats = []; G.pk = []; G.pop = []; G.hits = []; G.pp = []; G.cp = []; G.boom = [];
     for (const w of cards) if (w.gone && el >= w.back) Object.assign(w, ncard(w.t, w.id));
+    while (c3T.length && el >= c3T[0]) { c3T.shift(); c3s.push({ x: rnd(WD - 800), y: rnd(WD - 800), t: 2, id: 9 + c3s.length, gone: false, back: 0 }); }   // cada card aparece uma vez, em qualquer lugar do mapa
+    if (HUR_TESTE) for (const w of c3s) if (w.gone && el >= w.back) Object.assign(w, { x: rnd(WD - 800), y: rnd(WD - 800), gone: false });
     for (const w of pills) if (w.gone && el >= w.back) Object.assign(w, npill());
+    for (let j = flyers.length - 1; j >= 0; j--) { const f = flyers[j]; if (el - f.t0 >= f.dur) { drops.push(add({ x: f.x1, y: f.y1, v: f.v, d: el + 1, e: 0, yl: f.yl })); flyers.splice(j, 1); } }   // bolinha da explosão pousou: vira comida normal
+    for (const s of sn) if (s.carol && !s.cap && el >= s.at) {   // hora da MC Carol aparecer (sem aviso): longe dos humanos, já grande, com o corpo já esticado atrás dela
+      s.cap = true; s.alive = true; const [px, py] = spawnAt(s); s.x = s.lx = px; s.y = s.ly = py; s.cm = CAROL.START_CM; s.a = Math.atan2(-py, -px) + rnd(1); s.ta = s.a; s.inv = INV_TIME; s.ch = 0; s.cg = 0; s.t = 0;
+      const gp = RB(s) * .1, len = CAROL_LEN * RB(s) + 50; s.tr = []; s.t0 = 0;   // trilha pronta atrás dela (o que passaria da borda do mapa fica de fora)
+      for (let d = len; d > 0; d -= gp * .25) { const qx = px - Math.cos(s.a) * d, qy = py - Math.sin(s.a) * d; if (Math.abs(qx) < WD / 2 - 40 && Math.abs(qy) < WD / 2 - 40) s.tr.push(qx, qy); }
+      s.segs = []; for (let j = 0; j < 14; j++) s.segs.push({ x: px, y: py });
+    }
     for (const f of drops) if (!f.gone && el + 1 - f.d > 60) { const c = grid.get(key(f.x, f.y)); if (c) { const j = c.indexOf(f); if (j >= 0) c.splice(j, 1); } nfood--; f.gone = true; }
     drops = drops.filter(f => !f.gone);
     let rmax = 10;
-    for (const s of sn) if (s.alive) { s.rr = R(s); s.nn = Math.ceil(s.segs.length / 3); if (s.rr > rmax) rmax = s.rr; }
+    for (const s of sn) if (s.alive) { s.rr = RB(s); s.nn = Math.ceil(s.segs.length / 3); if (s.rr > rmax) rmax = s.rr; }
     buildBodyGrid();
     for (const s of sn) {
       if (!s.alive) continue;
+      if (s.hv) {   // furacão: a cobra é levada até o canto sorteado, perde parte do tamanho ao bater e fica sem controle até acabar o tempo
+        const h = s.hv, sc = dt / 60; h.t -= sc; s.boost = false;
+        if (!h.hit) {
+          h.f -= sc; const dx = h.x - s.x, dy = h.y - s.y, d = Math.hypot(dx, dy);
+          if (h.f <= 0 || d < 40) { s.x = h.x; s.y = h.y; h.hit = true; s.cm = Math.max(.1, s.cm * HUR_KEEP); G.hc.push([s.x | 0, s.y | 0, s.i]); }
+          else { const k = Math.min(d, d * sc / h.f); s.a = Math.atan2(dy, dx); s.x += dx / d * k; s.y += dy / d * k; }
+        }
+        if (h.t <= 0) s.hv = null;
+      }
       if (s.bot) {
+        const aggro = ag > 0 && s.agr && !s.carol;   // este bot está caçando agora
         s.t -= dt; s.cr = false; const m = WD / 2 - 250;
         if (Math.abs(s.x) > m || Math.abs(s.y) > m) s.ta = Math.atan2(-s.y, -s.x);
         else {
           let th = null, td = 500 * 500;   // jogador humano vindo na minha direção (tentando cortar minha frente)
-          for (const h of sn) {
+          if (!s.carol && !aggro) for (const h of sn) {   // a MC Carol não foge de ninguém; bot agressivo também não
             if (h.bot || !h.alive) continue;
             const dx = s.x - h.x, dy = s.y - h.y, d = dx * dx + dy * dy;
             if (d < td) { const ang = Math.atan2(dy, dx); if (Math.abs(Math.atan2(Math.sin(ang - h.a), Math.cos(ang - h.a))) < .8) { td = d; th = h; } }
@@ -124,12 +206,12 @@ export function createGame(human, bodies = [], mode = "time", heads = [], pnames
           if (th) { s.ta = Math.atan2(s.y - th.y, s.x - th.x); s.boost = td < 350 * 350 && s.cm > .5; s.cr = true; }   // foge
           else {
             let gd = 700 * 700;
-            near(s.x, s.y, 700, c => { for (const f of c) { if (!f.d) continue; const d = (f.x - s.x) ** 2 + (f.y - s.y) ** 2; if (d < gd) { gd = d; gb = f; } } });
+            if (!aggro) near(s.x, s.y, 700, c => { for (const f of c) { if (!f.d) continue; const d = (f.x - s.x) ** 2 + (f.y - s.y) ** 2; if (d < gd) { gd = d; gb = f; } } });
             s.cr = !!gb;
             if (gb) { s.ta = Math.atan2(gb.y - s.y, gb.x - s.x); s.boost = s.cm > .6; }
             else {
-              let bd = 2200 * 2200;
-              if (ag > 0) for (const o of sn) { if (o.bot || !o.alive || o.cm > s.cm * 4 + 1) continue; const d = (o.x - s.x) ** 2 + (o.y - s.y) ** 2; if (d < bd) { bd = d; tg = o; } }
+              let bd = (aggro ? AG_RANGE : 2200) ** 2;
+              if (aggro) for (const o of sn) { if (o.bot || !o.alive || o.cm > s.cm * 6 + 2) continue; const d = (o.x - s.x) ** 2 + (o.y - s.y) ** 2; if (d < bd) { bd = d; tg = o; } }
               if (tg) { s.ta = Math.atan2(tg.y + Math.sin(tg.a) * 140 - s.y, tg.x + Math.cos(tg.a) * 140 - s.x); s.boost = bd < 500 * 500 && s.cm > .6; }   // tenta matar o jogador
               else {
                 s.boost = false;
@@ -141,25 +223,24 @@ export function createGame(human, bodies = [], mode = "time", heads = [], pnames
               }
             }
           }
-          { const lm = tg || gb ? 28 : 70, k0 = tg ? 3 : 0, bx0 = gc(s.x - 200), bx1 = gc(s.x + 200), by0 = gc(s.y - 200), by1 = gc(s.y + 200);
+          if (!s.carol) { const lm = tg || gb ? 28 : 70, k0 = tg ? 3 : 0, bx0 = gc(s.x - 200), bx1 = gc(s.x + 200), by0 = gc(s.y - 200), by1 = gc(s.y + 200);
             out: for (let a = bx0; a <= bx1; a++) for (let b = by0; b <= by1; b++) for (let e = gHead[a * GN + b]; e >= 0; e = gNext[e]) {
               const v = gVal[e], k = v >> 6; if (k < k0) continue;
               const o = sn[v & 63]; if (o === s || !o.alive) continue;
               const q = o.segs[k]; if (!q) continue;
-              if (Math.abs(q.x - s.x) < 200 && Math.abs(q.y - s.y) < 200 && Math.hypot(q.x - s.x, q.y - s.y) < lm + o.rr) { s.ta = Math.atan2(s.y - q.y, s.x - q.x); s.t = 10; break out; }
+              if (Math.abs(q.x - s.x) < 200 && Math.abs(q.y - s.y) < 200 && Math.hypot(q.x - s.x, q.y - s.y) < lm + o.rr * (o.carol ? prf(o, k) : 1)) { s.ta = Math.atan2(s.y - q.y, s.x - q.x); s.t = 10; break out; }
             } }
         }
-        if (ag <= 0 && !s.cr) s.boost = false;
+        if ((!aggro && !s.cr) || s.carol) s.boost = false;
       } else { s.ta = s.stf > 0 ? s.a : s.inp.a; s.boost = s.stf > 0 ? false : s.inp.b; }   // Tadala: reta e dura, sem controle
-      const r = R(s), bo = s.boost && s.cm > .4;
+      const r = RH(s), bo = s.boost && s.cm > .4;
       if (bo) s.cm -= .012 * dt;
       const df = Math.atan2(Math.sin(s.ta - s.a), Math.cos(s.ta - s.a));
       // raio mínimo da curva (px) cresce com o tamanho: cobra pequena faz curva fechada (pega a comida), a gigante faz curva larga. Giro por tick = passo normal / raio
-      const spf = 1 + BIG_BONUS * Math.max(0, Math.min(1, (s.cm - BIG_FROM) / (BIG_FULL - BIG_FROM)));   // cobra grande é mais rápida: +0% até 100 cm, subindo até +50% aos 200 cm (e além)
-      const mt = Math.min(1.2 * spf, 4.8 * dt * spf / (TURN_R0 + Math.max(0, r - 10) * TURN_RK)) * (!s.bot && s.inp.k ? 1.5 : 1) * (s.bot && ag > 0 ? 1.35 : 1);
-      s.a += Math.max(-mt, Math.min(mt, df));
-      const sp = (bo ? 8.2 : 4.8) * dt * spf; s.x += Math.cos(s.a) * sp; s.y += Math.sin(s.a) * sp;
-      const gap = r * .5, n = Math.max(8, Math.min(L(s), Math.floor(BODY_MAX / gap) + 1));   // BODY_MAX: comprimento máximo do corpo em px
+      const spf = (1 + BIG_BONUS * Math.max(0, Math.min(1, (s.cm - BIG_FROM) / (BIG_FULL - BIG_FROM)))) * (s.carol ? CAROL.SPEED : 1);   // cobra grande é mais rápida: +0% até 100 cm, subindo até +50% aos 200 cm (e além)
+      const mt = Math.min(1.2 * spf, 4.8 * dt * spf / (TURN_R0 + Math.max(0, r - 10) * TURN_RK)) * (!s.bot && s.inp.k ? 1.5 : 1) * (s.bot && s.agr && ag > 0 ? 1.35 : 1);
+      if (!s.hv) { s.a += Math.max(-mt, Math.min(mt, df)); const sp = (bo ? 8.2 : 4.8) * dt * spf; s.x += Math.cos(s.a) * sp; s.y += Math.sin(s.a) * sp; }   // com furacão a posição já foi decidida acima
+      const gap = s.carol ? RB(s) * .1 : r * .5, n = s.carol ? Math.ceil(CAROL_LEN * RB(s) / gap) + 1 : Math.max(8, Math.min(L(s), Math.floor(Math.min(BODY_MAX, 4500 + 9 * s.cm) / gap) + 1));   // comprimento do corpo (px) cresce com o tamanho: 4500 + 9 px por cm, até BODY_MAX   // mesma quantidade de pontos de antes da cobra ficar fina (menos trabalho e menos dados na rede)  // mesma quantidade de pontos de antes da cobra ficar fina (menos trabalho e menos dados na rede)  // BODY_MAX: comprimento máximo do corpo em px
       layout(s, gap, n);
       near(s.x, s.y, r + EAT_PAD + 4, c => {
         for (let j = c.length - 1; j >= 0; j--) { const f = c[j];
@@ -167,32 +248,41 @@ export function createGame(human, bodies = [], mode = "time", heads = [], pnames
       });
       if (s.gr > 0) s.gr -= dt / 60;
       if (s.inv > 0) s.inv -= dt / 60;
+      if (s.cg > 0) s.cg -= dt / 60;
       if (s.stf > 0) s.stf -= dt / 60;
       if (s.fx) {   // efeito de card em andamento
         const dts = dt / 60;
-        if (s.fx.t === 0) { s.cm = Math.max(CARD_START_CM, s.cm - s.fx.rate * dts); if (s.cm <= CARD_START_CM) s.fx = null; }   // encolhe a taxa constante (cm/s) até o tamanho inicial
+        if (s.fx.t === 0) { s.cm = Math.max(s.fx.to, s.cm - s.fx.rate * dts); if (s.cm <= s.fx.to) s.fx = null; }   // encolhe a taxa constante (cm/s) até 40% do tamanho que tinha ao pegar
         else if (s.fx.t === 1) { const p0 = s.fx.p; s.fx.p = Math.min(1, p0 + dts / (s.fx.secs || CARD_GROW_SECS)); s.cm += s.fx.d * (s.fx.p ** CARD_GROW_ACCEL - p0 ** CARD_GROW_ACCEL); if (s.fx.p >= 1) s.fx = null; }   // cresce acelerando (progresso^ACCEL); se a cobra comer no meio, o que ela comeu fica
       }
       if (!s.bot) for (const w of pw) if (!w.gone && Math.abs(w.x - s.x) < 90 && Math.abs(w.y - s.y) < 90 && Math.hypot(w.x - s.x, w.y - s.y) < r + 60) { s.hp = CONDOM_HITS; s.gr = 0; w.gone = true; G.pk.push([w.x | 0, w.y | 0, s.i]); }
       if (!s.bot && s.cm <= PILL_MAX_CM) for (const w of pills) if (!w.gone && Math.abs(w.x - s.x) < 90 && Math.abs(w.y - s.y) < 90 && Math.hypot(w.x - s.x, w.y - s.y) < r + 60) { s.stf = PILL_STIFF; w.gone = true; w.back = el + PILL_BACK; G.pp.push([w.x | 0, w.y | 0, s.i]); }   // cobra maior que PILL_MAX_CM passa por cima sem efeito (a pílula fica)
+      for (const c3 of c3s) if (!s.bot && !c3.gone && !s.hv && Math.abs(c3.x - s.x) < 90 && Math.abs(c3.y - s.y) < 90 && Math.hypot(c3.x - s.x, c3.y - s.y) < r + 60) {   // card 3: quem pega fica normal; todas as outras são levadas a um ponto sorteado das laterais para cada uma
+        c3.gone = true; c3.back = el + 15; G.cp.push([c3.x | 0, c3.y | 0, s.i, 2]); G.hu = s.i;
+        { const vs = sn.filter(o => o.alive && o !== s && !(s.team >= 0 && o.team === s.team)), n = vs.length, m = WD / 2 - 90, ts = vs.map((_, k) => (k + Math.random()) / n);   // cada cobra vai para um ponto DIFERENTE das laterais do mapa (pontos espalhados pelo contorno todo, sorteados para cada uma)
+          for (let k = n - 1; k > 0; k--) { const j = Math.random() * (k + 1) | 0; [ts[k], ts[j]] = [ts[j], ts[k]]; }
+          vs.forEach((o, k) => { const q = ts[k] * 4, side = q | 0, u = (q - side) * 2 * m, [tx, ty] = side === 0 ? [-m + u, -m] : side === 1 ? [m, -m + u] : side === 2 ? [m - u, m] : [-m, m - u];
+            o.hv = { x: tx, y: ty, f: HUR_FLY, t: HUR_STUN, hit: false }; o.boost = false; }); }
+      }
       if (!s.bot) for (const w of cards) if (!w.gone && Math.abs(w.x - s.x) < 90 && Math.abs(w.y - s.y) < 90 && Math.hypot(w.x - s.x, w.y - s.y) < r + 60) {
         w.gone = true; w.back = el + CARD_BACK; G.cp.push([w.x | 0, w.y | 0, s.i, w.t]);
-        if (w.t === 0 && s.cm > CARD_START_CM) s.fx = { t: 0, rate: (s.cm - CARD_START_CM) / CARD_SHRINK_SECS };   // card 1
+        if (w.t === 0 && s.cm * CARD_SHRINK_TO > CARD_START_CM && s.cm > CARD_START_CM) s.fx = { t: 0, to: s.cm * CARD_SHRINK_TO, rate: s.cm * (1 - CARD_SHRINK_TO) / CARD_SHRINK_SECS };   // card 1: encolhe para 40% do tamanho de agora
         else if (w.t === 1 && s.cm < CARD_BOOST_BELOW_CM) s.fx = { t: 1, p: 0, d: CARD_BOOST_TO_CM - s.cm, secs: CARD_BOOST_SECS };   // card 2 em cobra pequena: cresce até CARD_BOOST_TO_CM em CARD_BOOST_SECS
         else if (w.t === 1) s.fx = { t: 1, p: 0, d: s.cm * (CARD_GROW_TIERS.find(q => Math.round(s.cm * 10) / 10 <= q[0])[1] - 1) };   // card 2: d = quanto vai crescer no total (multiplicador depende do tamanho ao pegar)
       }
       if (Math.abs(s.x) > WD / 2 || Math.abs(s.y) > WD / 2) { die(s); continue; }
       let touch = false;
-      if (s.inv <= 0) {   // piscando = fantasma: não morre nem mata
+      if (s.inv <= 0 && !s.hv) {   // piscando = fantasma (levada pelo furacão também não colide): não morre nem mata
         const q = (r + rmax) * .8, st = ++stamp, ax0 = gc(s.x - q), ax1 = gc(s.x + q), ay0 = gc(s.y - q), ay1 = gc(s.y + q);
         col: for (let a = ax0; a <= ax1; a++) for (let b = ay0; b <= ay1; b++) for (let e = gHead[a * GN + b]; e >= 0; e = gNext[e]) {
           const v = gVal[e], o = sn[v & 63], k = v >> 6;
-          if (o === s || !o.alive || o.inv > 0 || o.mk === st) continue;
+          if (o === s || !o.alive || o.inv > 0 || o.hv || o.mk === st || (s.team >= 0 && o.team === s.team)) continue;   // mesma equipe: atravessa sem morrer
           const sgo = o.segs; if (k >= sgo.length) continue;
-          const qq = sgo[k], lk = (r + o.rr * TAPER(k / 3, o.nn)) * .8;
+          const qq = sgo[k], lk = (r + o.rr * prf(o, k)) * .8;
           if (Math.abs(qq.x - s.x) < lk && Math.abs(qq.y - s.y) < lk && Math.hypot(qq.x - s.x, qq.y - s.y) < lk) {
             o.mk = st; touch = true;   // cada cobra só conta uma vez por tick
-            if (s.hp > 0) { if (s.gr <= 0) { s.hp--; s.gr = 1; if (s.hp === 0) s.ex = 8; G.pop.push([s.x | 0, s.y | 0, s.i, s.hp]); } } else if (s.ex <= 0) { die(s); if (!o.bot) G.hits.push([o.i, s.i, s.x | 0, s.y | 0]); break col; }   // camisinha: cada toque fura mais; no 3º ela estoura e a cobra sai de dentro — enquanto sai (ex) não morre; só depois disso um toque custa a vida
+            if (s.carol) { if (s.cg <= 0) { s.ch++; s.cg = CAROL.HIT_CD; if (s.ch >= CAROL.HITS) { die(s); break col; } } }   // MC Carol: cada batida da cabeça conta; na 3ª ela explode
+            else if (s.hp > 0) { if (s.gr <= 0) { s.hp--; s.gr = 1; if (s.hp === 0) s.ex = 8; G.pop.push([s.x | 0, s.y | 0, s.i, s.hp]); } } else if (s.ex <= 0) { die(s); if (!o.bot) G.hits.push([o.i, s.i, s.x | 0, s.y | 0]); break col; }   // camisinha: cada toque fura mais; no 3º ela estoura e a cobra sai de dentro — enquanto sai (ex) não morre; só depois disso um toque custa a vida
           }
         }
       }
@@ -207,21 +297,39 @@ export function createGame(human, bodies = [], mode = "time", heads = [], pnames
       s.bx0 = x0; s.bx1 = x1; s.by0 = y0; s.by1 = y1;
     }
     const sec = dt / 60; el += sec;
-    if (ag > 0) { ag -= sec; if (ag <= 0) { ag = 0; evT = 30 + Math.random() * 60; } } else { evT -= sec; if (evT <= 0) ag = 15; }
-    fph -= sec; if (fph <= 0) { fph = 25 + Math.random() * 30; ftg = [800, 1800, 3500][Math.random() * 3 | 0]; }
-    cl -= sec; if (cl <= 0) { cl = 20 + Math.random() * 25; const hx = rnd(WD - 600), hy = rnd(WD - 600); for (let i = 0; i < 90; i++) { const a = Math.random() * 6.28, d = Math.random() * 320; add({ x: hx + Math.cos(a) * d, y: hy + Math.sin(a) * d, v: 1 + (Math.random() * 2 | 0), e: Math.random() * 4 | 0 }); } }
-    for (let q = 0; q < 10 && nfood < ftg; q++) add(nf());
-    if (nfood > ftg + 150) for (let q = 0; q < 8; q++) { const c = grid.get(key(rnd(WD - 100), rnd(WD - 100))); if (c && c.length && !c[0].d) { c[0].gone = true; c.shift(); nfood--; } }
+    if (ag > 0) { ag -= sec; if (ag <= 0) { ag = 0; evT = AG_EVERY[0] + Math.random() * (AG_EVERY[1] - AG_EVERY[0]); } } else { evT -= sec; if (evT <= 0) { ag = AG_DUR[0] + Math.random() * (AG_DUR[1] - AG_DUR[0]); for (const b of sn) b.agr = Math.random() < AG_FRAC; } }
+    // chuva de sorvete: de tempos em tempos (1m30 a 2m40), por 10 s, cai sorvete em 2 pontos aleatórios do mapa ao mesmo tempo (sem aviso)
+    mev -= sec;
+    if (mev <= 0) { mev = 90 + Math.random() * 70; const lim = WD / 2 - 450; rain = 10;
+      const p1 = [rnd(lim * 2), rnd(lim * 2)]; let p2 = p1, dm = -1;   // o 2º ponto fica bem longe do 1º (metade do mapa ou mais; senão usa o mais distante de 20 tentativas)
+      for (let q = 0; q < 20; q++) { const c = [rnd(lim * 2), rnd(lim * 2)], d = Math.hypot(c[0] - p1[0], c[1] - p1[1]); if (d > dm) { dm = d; p2 = c; } if (d >= WD * .55) break; }
+      rp = [p1, p2];
+    }
+    if (rain > 0) {
+      rain -= sec;
+      for (const [px, py] of rp) for (let q = 0; q < 2; q++) { const a = Math.random() * 6.283, d = Math.random() * 380; ices.push(add({ x: px + Math.cos(a) * d, y: py + Math.sin(a) * d, v: 2 + (Math.random() * 2 | 0), e: 5, t: el })); }
+    }
+    for (const f of ices) if (!f.gone && el - f.t > 45) { const c = grid.get(key(f.x, f.y)); if (c) { const j = c.indexOf(f); if (j >= 0) c.splice(j, 1); } nfood--; f.gone = true; }
+    if (ices.length && ices[0].gone) ices = ices.filter(f => !f.gone);
+    fph -= sec; if (fph <= 0) { fph = 25 + Math.random() * 30; ftg = Math.round([800, 1800, 3500][Math.random() * 3 | 0] * FOOD_K); }
+    cl -= sec; if (cl <= 0) { cl = 20 + Math.random() * 25; const hx = rnd(WD - 600), hy = rnd(WD - 600); for (let i = 0, nc = Math.round(90 * FOOD_K); i < nc; i++) { const a = Math.random() * 6.28, d = Math.random() * 320; add({ x: hx + Math.cos(a) * d, y: hy + Math.sin(a) * d, v: 1 + (Math.random() * 2 | 0), e: Math.random() * 4 | 0 }); } }
+    hm -= sec; if (hm <= 0) { hm = FOOD_HOT_MOVE[0] + Math.random() * (FOOD_HOT_MOVE[1] - FOOD_HOT_MOVE[0]); Object.assign(HOT[Math.random() * HOT.length | 0], hpos()); }   // um ponto de comida muda de lugar
+    for (let q = 0; q < FOOD_REFILL && nfood < ftg; q++) add(nf());
+    if (nfood > ftg + 150) for (let q = 0; q < 8; q++) { const c = grid.get(key(rnd(WD - 100), rnd(WD - 100))); if (c && c.length && !c[0].d && c[0].e !== 5) { c[0].gone = true; c.shift(); nfood--; } }
     const al = sn.filter(s => s.alive);
-    G.over = force || (TM ? el >= TIME : (humanAlive() === 0 || (humanAlive() === 1 && elimN >= 1)));   // elim: acaba quando sobra só 1 humano vivo (ou nenhum)
+    G.te = el >= TIME;   // tempo esgotado
+    G.ts = TEAMON ? tsum().map(v => Math.round(v * 10)) : null;   // placar ao vivo das equipes
+    G.over = force || G.te || (!TM && (humanAlive() === 0 || (TEAMON ? (teamsAlive() <= 1 && everT.size >= 2 && elimN >= 1) : (humanAlive() === 1 && elimN >= 1))));   // elim: também tem 10 min; acaba antes se sobra só 1 humano vivo (ou nenhum)
   };
 
   G.input = (i, a, b, k) => { const s = sn[i]; if (s) s.inp = { a, b, k }; };
-  G.drop = i => { if (sn[i]) sn[i].bot = true; };
+  G.resume = i => { const s = sn[i]; if (s) { s.bot = false; s.inp = { a: s.a, b: false, k: false }; } };   // jogador que perdeu a conexão voltou: reassume a mesma cobra
+  G.drop = (i, clr) => { if (sn[i]) { sn[i].bot = true; if (clr) sn[i].team = -1; } };   // clr: saiu de vez (a cobra vira bot sem equipe); só caiu a conexão: mantém a equipe
   // entrada no meio da partida: assume a cobra da vaga (viva = continua; morta = renasce pequena piscando)
-  G.join = (i, body, head, name) => {
+  G.join = (i, body, head, name, guest, team = -1) => {
     const s = sn[i]; if (!s) return;
-    s.sk = body; G.sk[i] = body; if (head != null) { G.hd[i] = head; s.nm = G.names[i] = name || HEAD_NAMES[head]; } s.bot = false; s.lives = TM ? 0 : LIVES; s.inp = { a: s.a, b: false, k: false };
+    s.team = TEAMON && team >= 0 ? team : -1; if (s.team >= 0) everT.add(s.team);
+    s.sk = body; G.sk[i] = body; if (head != null) { G.hd[i] = head; s.nm = G.names[i] = name || HEAD_NAMES[head]; } s.bot = false; s.guest = !!guest; s.lives = TM ? 0 : LIVES; s.inp = { a: s.a, b: false, k: false };
     if (!s.alive) respawn(s);
     // quem entrou no meio da partida não pode ficar igual a um bot: bots com a mesma cabeça ou o mesmo nome ganham outra(o)
     const ch = [], inUse = new Set(G.hd.slice(0, NSEL)), nmUse = new Set(sn.map(x => lc(x.nm)));
@@ -234,32 +342,45 @@ export function createGame(human, bodies = [], mode = "time", heads = [], pnames
     }
     return ch;
   };
-  G.lb = () => sn.map(s => [s.i, Math.round((s.alive ? s.cm : s.fin) * 10), s.alive ? 1 : 0, s.bot ? 0 : 1]);   // lista ao vivo: tamanho atual (igual ao da tela)
-  G.lbBest = () => sn.map(s => [s.i, Math.round(Math.max(s.best, s.alive ? s.cm : s.fin) * 10), s.alive ? 1 : 0]);   // ranking final: maior tamanho de qualquer vida
+  G.lb = () => sn.filter(s => !s.carol || s.cap).map(s => [s.i, Math.round((s.alive ? s.cm : s.fin) * 10), s.alive ? 1 : 0, s.bot ? 0 : 1, s.team]);   // lista ao vivo (convidado aparece como bot: sem amarelo): tamanho atual (igual ao da tela)
+  G.lbBest = () => sn.filter(s => !s.carol).map(s => [s.i, Math.round(Math.max(s.best, s.alive ? s.cm : s.fin) * 10), s.alive ? 1 : 0]);   // ranking final: maior tamanho de qualquer vida
+  G.tms = () => sn.map(s => s.team);
+  // resultado das equipes: soma de cada uma; vence a maior soma (empate: a que tem a maior cobra individual). Eliminação sem tempo esgotado: vence a equipe que ficou viva
+  const teamResult = () => {
+    if (!TEAMON) return {};
+    const t = tsum(); let tw = -1;
+    if (!TM && !G.te && teamsAlive() === 1) tw = sn.find(s => !s.bot && s.i < NSEL && s.alive && s.team >= 0).team;
+    else if (t[0] !== t[1]) tw = t[0] > t[1] ? 0 : 1;
+    else { const b = [0, 0]; for (const s of sn) if (s.team >= 0) b[s.team] = Math.max(b[s.team], tsc(s)); tw = b[0] > b[1] ? 0 : b[1] > b[0] ? 1 : -1; }
+    return { teams: 1, ts: t.map(v => Math.round(v * 10)), tw };
+  };
   G.result = () => {
-    const all = [...sn];
+    const all = sn.filter(s => !s.carol), T = teamResult();   // a MC Carol não entra no resultado (não pode ganhar)
     if (TM) {   // por tempo: ranking = tamanho que cada cobra tem quando o tempo fecha
       all.sort((a, b) => b.cm - a.cm);
-      return { l: all.map(s => [s.i, Math.round(s.cm * 10), 1]), w: all[0].i, tm: 1, md: mode };
+      return { l: all.map(s => [s.i, Math.round(s.cm * 10), 1]), w: all[0].i, tm: 1, md: mode, ...T };
     }
-    const hum = s => !s.bot && s.i < NSEL;   // eliminação: humanos vivos primeiro, depois bots vivos (por tamanho), depois os mortos (quem caiu por último fica melhor)
-    all.sort((a, b) => a.alive !== b.alive ? (a.alive ? -1 : 1) : a.alive ? (hum(a) !== hum(b) ? (hum(a) ? -1 : 1) : b.cm - a.cm) : b.dd - a.dd);
-    return { l: all.map(s => [s.i, Math.round(Math.max(s.best, s.alive ? s.cm : s.fin) * 10), s.alive ? 1 : 0]), w: all[0].i, tm: 0, md: mode };
+    // eliminação: o tamanho final de cada cobra é a SOMA de todas as vidas dela (as que já acabaram + a atual)
+    const hum = s => !s.bot && s.i < NSEL, tot = s => (s.tot || 0) + (s.alive ? s.cm : 0), te = !!G.te;
+    // tempo esgotado com mais de uma cobra viva: as vivas vêm primeiro, da maior soma para a menor; sem tempo (último humano vivo): humanos vivos primeiro, como antes
+    all.sort((a, b) => a.alive !== b.alive ? (a.alive ? -1 : 1) : a.alive ? (te ? tot(b) - tot(a) : (hum(a) !== hum(b) ? (hum(a) ? -1 : 1) : tot(b) - tot(a))) : b.dd - a.dd);
+    return { l: all.map(s => [s.i, Math.round(tot(s) * 10), s.alive ? 1 : 0]), w: all[0].i, tm: 0, te: te ? 1 : 0, md: mode, ...T };
   };
   const spec = {}; let force = false;
   const humanAlive = () => sn.filter(s => !s.bot && s.i < NSEL && s.alive).length;
+  const teamsAlive = () => new Set(sn.filter(s => !s.bot && s.i < NSEL && s.alive && s.team >= 0).map(s => s.team)).size;   // equipes que ainda têm jogador vivo
   G.finish = () => { if (humanAlive() > 0) return false; force = true; return true; };   // só encerra se TODOS os jogadores humanos já morreram
   G.snap = i => {
     const p = sn[i]; let sp = -1, tg = null;
     if (!p.alive) {   // morto de vez: a câmera acompanha a maior cobra viva (só troca se outra ficar 20% maior ou se a atual morrer)
-      let big = null; for (const s of sn) if (s.alive && (!big || s.cm > big.cm)) big = s;
+      let big = null; for (const s of sn) if (s.alive && !s.carol && (!big || s.cm > big.cm)) big = s;
       const cur = spec[i] != null ? sn[spec[i]] : null;
       tg = cur && cur.alive && big && cur.cm * 1.2 >= big.cm ? cur : big; if (tg) { spec[i] = tg.i; sp = tg.i; }
     }
     const cx = tg ? tg.x : p.alive ? p.x : p.lx, cy = tg ? tg.y : p.alive ? p.y : p.ly, B = Math.max(1100, VIEW_SPAN((tg || p).cm) * 1.25), ns = [];
     for (const s of sn) {
       if (!s.alive) continue;
-      const sg = s.segs, e = (Math.ceil(sg.length / 3) - 1) * 3, Bm = B + R(s) * 1.5 + 60;   // e = índice do último ponto (de 3 em 3)
+      const sg = s.segs, e = (Math.ceil(sg.length / 3) - 1) * 3, Bm = B + Math.max(R(s), s.rr) * 1.5 + 60;   // e = índice do último ponto (de 3 em 3)
       let last = -1;
       if (s === p || (s.bx1 > cx - Bm && s.bx0 < cx + Bm && s.by1 > cy - Bm && s.by0 < cy + Bm)) {
         if (s.hp > 0) last = e;   // com camisinha vai o corpo inteiro (o desenho da camisinha usa o comprimento total)
@@ -271,10 +392,11 @@ export function createGame(human, bodies = [], mode = "time", heads = [], pnames
       const end = Math.min(e, last + 3), pts = []; for (let k = 0; k <= end; k += 3) pts.push(sg[k].x | 0, sg[k].y | 0);
       ns.push([s.i, Math.round(s.cm * 10), +s.a.toFixed(2), pts, s.hp, s.inv > 0 ? s.inv * 100 | 0 : 0, e / 3 + 1, s.stf > 0 ? 1 : 0]);
     }
-    const f = []; near(cx, cy, B, c => { for (const o of c) if (Math.abs(o.x - cx) < B && Math.abs(o.y - cy) < B) f.push(o.x | 0, o.y | 0, o.d ? 4 : o.e); });
-    return { t: "s", x: cx | 0, y: cy | 0, al: p.alive ? 1 : 0, sp, hd: humanAlive(), ns, f, m: sn.slice(0, NSEL).filter(s => s.alive).map(s => [s.i, s.x | 0, s.y | 0]),
+    const f = []; near(cx, cy, B, c => { for (const o of c) if (Math.abs(o.x - cx) < B && Math.abs(o.y - cy) < B) f.push(o.x | 0, o.y | 0, o.d ? (o.yl ? 7 : 4) : o.e === 5 && el - o.t < 1 ? 6 : o.e); });   // 6 = sorvete recém-criado (o navegador o desenha caindo do céu)
+    for (const o of flyers) { const u = Math.min(1, (el - o.t0) / o.dur), q = 1 - Math.pow(1 - u, 2.5), x = o.x0 + (o.x1 - o.x0) * q, y = o.y0 + (o.y1 - o.y0) * q; if (Math.abs(x - cx) < B && Math.abs(y - cy) < B) f.push(x | 0, y | 0, o.yl ? 9 : 8); }   // bolinhas da explosão ainda voando: 8 = verde, 9 = amarela
+    return { t: "s", bm: G.boom, x: cx | 0, y: cy | 0, al: p.alive ? 1 : 0, sp, hd: humanAlive(), ns, f, m: sn.slice(0, NSEL).filter(s => s.alive).map(s => [s.i, s.x | 0, s.y | 0]),
       ea: G.eats.filter(e => Math.abs(e[0] - cx) < B && Math.abs(e[1] - cy) < B), dx: G.dead.filter(e => Math.abs(e[0] - cx) < B && Math.abs(e[1] - cy) < B),
-      lf: TM ? -1 : p.lives, hp: p.hp, ht: G.hits.filter(h => h[0] === i).map(h => [h[2], h[3], h[1]]), pop: G.pop.filter(e => Math.abs(e[0] - cx) < B && Math.abs(e[1] - cy) < B), pw: pw.filter(w => !w.gone && Math.abs(w.x - cx) < B + 100 && Math.abs(w.y - cy) < B + 100).map(w => [w.x | 0, w.y | 0]), pl: pills.filter(w => !w.gone && Math.abs(w.x - cx) < B + 100 && Math.abs(w.y - cy) < B + 100).map(w => [w.x | 0, w.y | 0]), pp: G.pp.filter(e => Math.abs(e[0] - cx) < B && Math.abs(e[1] - cy) < B), pk: G.pk.filter(e => Math.abs(e[0] - cx) < B && Math.abs(e[1] - cy) < B), cd: cards.filter(w => !w.gone && Math.abs(w.x - cx) < B + 100 && Math.abs(w.y - cy) < B + 100).map(w => [w.x | 0, w.y | 0, w.t, w.id]), cp: G.cp.filter(e => Math.abs(e[0] - cx) < B && Math.abs(e[1] - cy) < B), ag: ag > 0 ? 1 : 0, tl: TM ? Math.max(0, TIME - el) | 0 : -1, n: sn.filter(s => s.alive).length };
+      lf: TM ? -1 : p.lives, ts: G.ts, hp: p.hp, ht: G.hits.filter(h => h[0] === i).map(h => [h[2], h[3], h[1]]), pop: G.pop.filter(e => Math.abs(e[0] - cx) < B && Math.abs(e[1] - cy) < B), pw: pw.filter(w => !w.gone && Math.abs(w.x - cx) < B + 100 && Math.abs(w.y - cy) < B + 100).map(w => [w.x | 0, w.y | 0]), pl: pills.filter(w => !w.gone && Math.abs(w.x - cx) < B + 100 && Math.abs(w.y - cy) < B + 100).map(w => [w.x | 0, w.y | 0]), pp: G.pp.filter(e => Math.abs(e[0] - cx) < B && Math.abs(e[1] - cy) < B), pk: G.pk.filter(e => Math.abs(e[0] - cx) < B && Math.abs(e[1] - cy) < B), cd: (c3s.length ? [...cards, ...c3s] : cards).filter(w => !w.gone && Math.abs(w.x - cx) < B + 100 && Math.abs(w.y - cy) < B + 100).map(w => [w.x | 0, w.y | 0, w.t, w.id]), hu: G.hu, hc: G.hc.filter(e => Math.abs(e[0] - cx) < B + 300 && Math.abs(e[1] - cy) < B + 300), cp: G.cp.filter(e => Math.abs(e[0] - cx) < B && Math.abs(e[1] - cy) < B), ag: ag > 0 ? 1 : 0, tl: Math.max(0, TIME - el) | 0, n: sn.filter(s => s.alive && !s.carol).length };
   };
   return G;
 }

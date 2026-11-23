@@ -24,6 +24,9 @@ export const sfx = {
 };
 // som do aviso "bateu no seu rabo": coloque o arquivo rabo.mp3 na pasta public (se não existir, toca o alerta sintético)
 let rb = null, rbBad = false, rbT = 0;
+export function playBoom() {   // explosão da MC Carol: toca public/mccarol.mp3 (respeita o botão de mudo)
+  if (muted) return; const a = new Audio("/mccarol.mp3"); a.volume = 1; a.play().catch(() => {});
+}
 export function playRabo() {
   if (muted) return;
   const n = performance.now(); if (n - rbT < 800) return; rbT = n;
@@ -34,7 +37,7 @@ export function startMusic() {
   if (!rb) { rb = new Audio("/rabo.mp3"); rb.preload = "auto"; rb.onerror = () => { rbBad = true; };
     try { const c = ctx(), gn = c.createGain(); gn.gain.value = 1.4; c.createMediaElementSource(rb).connect(gn); gn.connect(c.destination); } catch (e) {} }   // rabo.mp3 40% mais alto (volume do <audio> já está no máximo, então o ganho de 1.4 é feito pelo WebAudio) }
   if (mu) return;
-  mu = new Audio("/musica.mp3"); mu.loop = true; mu.volume = .1008; mu.muted = muted;   // volume .1008 = mais 40% mais baixa que .168 (originalmente .28)
+  mu = new Audio("/musica.mp3"); mu.loop = true; mu.volume = .0504; mu.muted = muted;   // volume .1008 = mais 40% mais baixa que .168 (originalmente .28)
   mu.play().catch(() => {});
 }
 export function toggleMute() { muted = !muted; if (mu) mu.muted = muted; return muted; }
