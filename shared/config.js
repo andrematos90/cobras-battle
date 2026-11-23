@@ -227,3 +227,7 @@ export const THICK_CAP = 30;      // até este "tamanho dividido por THICK_DIV" 
 export const THICK_SLOPE1 = 1.5;  // espessura ganha por unidade até o THICK_CAP
 export const THICK_SLOPE2 = .6;   // depois do THICK_CAP ela continua engrossando, mais devagar (era .3). Maior = cobra grande mais grossa
 export const RAD = cm => { const x = cm / THICK_DIV; return 10 + Math.min(x, THICK_CAP) * THICK_SLOPE1 + Math.max(0, x - THICK_CAP) * THICK_SLOPE2; };
+
+// --- comprimento do corpo (px) = BODY_BASE + BODY_PER_CM x tamanho (cm), no máximo BODY_MAX. Antes era 4500 + 9 x cm: com 70 cm o corpo já passava de 5000 px ---
+export const BODY_BASE = 800;     // comprimento (px) de uma cobra de 0 cm (menor = cobra mais curta no começo)
+export const BODY_PER_CM = 15;    // quantos px o corpo ganha por cm comido (menor = cresce menos em comprimento)
