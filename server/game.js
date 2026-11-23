@@ -232,7 +232,7 @@ export function createGame(human, bodies = [], mode = "time", heads = [], pnames
             } }
         }
         if ((!aggro && !s.cr) || s.carol) s.boost = false;
-      } else { s.ta = s.stf > 0 ? s.a : s.inp.a; s.boost = s.stf > 0 ? false : s.inp.b; }   // Tadala: reta e dura, sem controle
+      } else { if (s.inp.d) { s.kt = (s.kt ?? s.inp.a) + s.inp.d * 4 * dt / 60; s.kt = Math.atan2(Math.sin(s.kt), Math.cos(s.kt)); } s.ta = s.stf > 0 ? s.a : s.inp.d ? s.kt : s.inp.a; s.boost = s.stf > 0 ? false : s.inp.b; }   // Tadala: reta e dura, sem controle
       const r = RH(s), bo = s.boost && s.cm > .4;
       if (bo) s.cm -= .012 * dt;
       const df = Math.atan2(Math.sin(s.ta - s.a), Math.cos(s.ta - s.a));
@@ -322,7 +322,10 @@ export function createGame(human, bodies = [], mode = "time", heads = [], pnames
     G.over = force || G.te || (!TM && (humanAlive() === 0 || (TEAMON ? (teamsAlive() <= 1 && everT.size >= 2 && elimN >= 1) : (humanAlive() === 1 && elimN >= 1))));   // elim: também tem 10 min; acaba antes se sobra só 1 humano vivo (ou nenhum)
   };
 
-  G.input = (i, a, b, k) => { const s = sn[i]; if (s) s.inp = { a, b, k }; };
+  G.input = (i, a, b, k, d = 0) => {   // d: -1/0/1 = ← → seguradas sozinhas. Nesse caso o SERVIDOR gira o ângulo-alvo sozinho (4 rad/s): pacotes atrasados ou em rajada no Render não deixam mais a curva travar e depois "escorregar"
+    const s = sn[i]; if (!s) return; if (d && !(s.inp && s.inp.d)) s.kt = a;   // começou a segurar: parte do ângulo que o jogador mandou
+    s.inp = { a, b, k, d };
+  };
   G.resume = i => { const s = sn[i]; if (s) { s.bot = false; s.inp = { a: s.a, b: false, k: false }; } };   // jogador que perdeu a conexão voltou: reassume a mesma cobra
   G.drop = (i, clr) => { if (sn[i]) { sn[i].bot = true; if (clr) sn[i].team = -1; } };   // clr: saiu de vez (a cobra vira bot sem equipe); só caiu a conexão: mantém a equipe
   // entrada no meio da partida: assume a cobra da vaga (viva = continua; morta = renasce pequena piscando)

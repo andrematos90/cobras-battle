@@ -192,8 +192,9 @@ export function runGame(cv, { hud, sc, dd, fin, tail, bn, vg, send }) {
   const W = window;
   W.addEventListener("resize", rs); W.addEventListener("pointermove", mv); W.addEventListener("pointerdown", pd); W.addEventListener("pointerup", pu);
   W.addEventListener("pointercancel", pu); W.addEventListener("keydown", kd); W.addEventListener("keyup", ku); W.addEventListener("blur", bl);
-  let lastSend = 0, sA = 0, sB = false, sK = false, fdt = .016;
-  const sendIn = () => { lastSend = performance.now(); sA = +inp.a.toFixed(2); sB = inp.b; sK = !!anyK(); send({ t: "in", a: sA, b: sB, k: sK }); };
+  let lastSend = 0, sA = 0, sB = false, sK = false, sD = 0, fdt = .016;
+  const kdir = () => (ky.u || ky.d) ? 0 : (ky.r ? 1 : 0) - (ky.l ? 1 : 0);
+  const sendIn = () => { lastSend = performance.now(); sA = +inp.a.toFixed(2); sB = inp.b; sK = !!anyK(); sD = kdir(); send({ t: "in", a: sA, b: sB, k: sK, d: sD }); };
   const si = setInterval(sendIn, 33);   // além deste intervalo, o comando é enviado assim que muda (no máximo a cada 14 ms, ver loop)
   const pingI = setInterval(() => send({ t: "ping", c: performance.now() }), 1000); send({ t: "ping", c: performance.now() });   // mede o RTT (usado pela previsão e pelo F3)
   const inH = []; let ps = null;   // histórico dos comandos e posição suavizada da cabeça prevista
@@ -329,7 +330,7 @@ export function runGame(cv, { hud, sc, dd, fin, tail, bn, vg, send }) {
     else if (dx) inp.a += dx * 4 * dts;
     inp.a = Math.atan2(Math.sin(inp.a), Math.cos(inp.a));
     fdt = dts; inH.push({ t: now, a: inp.a, b: inp.b, k: !!anyK() }); while (inH.length > 1 && inH[0].t < now - 2000) inH.shift();
-    if (now - lastSend >= 14 && (+inp.a.toFixed(2) !== sA || inp.b !== sB || !!anyK() !== sK)) sendIn();   // mudou o comando: manda na hora (em vez de esperar o próximo intervalo de 33 ms)
+    if (now - lastSend >= 14 && (+inp.a.toFixed(2) !== sA || inp.b !== sB || !!anyK() !== sK || kdir() !== sD)) sendIn();   // mudou o comando: manda na hora (em vez de esperar o próximo intervalo de 33 ms)
     if (ST.P != null) {   // cabeçote de reprodução: ~1 tick a cada 40 ms, acelera/desacelera até 50% para manter a folga (pb ticks) e nunca passa do snapshot mais novo
       const lead = ST.kl - ST.P;
       ST.P = lead > 10 ? ST.kl - ST.pb : Math.min(ST.kl, ST.P + dts * 1000 / TICK * (1 + Math.max(-.5, Math.min(.5, (lead - ST.pb) * .2))));
