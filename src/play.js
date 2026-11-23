@@ -3,7 +3,7 @@ import { CHAO_URL } from "./chaoData.js";
 import { makeTile } from "./terrain.js";
 import { sfx, playRabo, playBoom } from "./sound.js";
 import { CAROL, isCarol, carolProf, carolBall } from "../shared/carol.js";
-import { WD, NSEL, NH, LIVES, TAPER, TICK, INV_TIME, VIEW_SPAN, TURN_R0, TURN_RK } from "../shared/config.js";
+import { WD, NSEL, NH, LIVES, TAPER, TICK, INV_TIME, VIEW_SPAN, TURN_R0, TURN_RK, RAD } from "../shared/config.js";
 import { TEAMS } from "../shared/teams.js";
 
 // as fotos originais têm ~1250x1250 px (1 MB cada). Desenhar isso reduzido a cada quadro era pesado: ao carregar, guardamos uma miniatura quadrada 256x256 (m.sm) e só ela é usada no jogo
@@ -43,7 +43,7 @@ function boom(x, y, i) {
 const FALL = new Map();   // sorvetes caindo: posição -> instante em que apareceram
 const EMO = [];   // cada emoji da comida vira um sprite 1 vez (fillText de emoji com escala nova a cada quadro re-rasteriza a fonte colorida = lento)
 const emo = k => EMO[k] || (EMO[k] = (() => { const c = document.createElement("canvas"); c.width = c.height = 80; const t = c.getContext("2d"); t.font = "60px sans-serif"; t.textAlign = "center"; t.textBaseline = "middle"; t.fillText(FE[k], 40, 42); return c; })());
-const R = c => { const x = c / 4.76; return 10 + Math.min(x, 30) * 1.5 + Math.max(0, x - 30) * .3; };
+const R = RAD;
 
 export function onSnap(m) {
   ST.x = m.x; ST.y = m.y; ST.al = m.al; ST.sp = m.sp; ST.hd = m.hd; ST.on = m.on; ST.tl = m.tl; ST.n = m.n; ST.m = m.m; ST.food = m.f;

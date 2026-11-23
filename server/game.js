@@ -1,4 +1,4 @@
-import { WD, TIME, NS, NSEL, NH, HEAD_NAMES, BOT_NAMES, BOT_NAMES2, BOT_NAMES_EXTRA, LIVES, NB, CONDOMS, CONDOM_HITS, TAPER, DROP_V, INV_TIME, PILLS, PILL_STIFF, PILL_MAX_CM, PILL_BACK, TURN_R0, TURN_RK, EAT_PAD, MAX_DROPS, BODY_MAX, CARD_BACK, CARD_START_CM, CARD_SHRINK_SECS, CARD_GROW_TIERS, FOOD_HOT, FOOD_BG, FOOD_HOT_MOVE, CARD_SHRINK_TO, CARD_GROW_SECS, CARD_GROW_ACCEL, CARDS_POR_TIPO, CARD_BOOST_BELOW_CM, CARD_BOOST_TO_CM, CARD_BOOST_SECS, VIEW_SPAN } from "../shared/config.js";
+import { WD, TIME, NS, NSEL, NH, HEAD_NAMES, BOT_NAMES, BOT_NAMES2, BOT_NAMES_EXTRA, LIVES, NB, CONDOMS, CONDOM_HITS, TAPER, DROP_V, INV_TIME, PILLS, PILL_STIFF, PILL_MAX_CM, PILL_BACK, TURN_R0, TURN_RK, EAT_PAD, MAX_DROPS, BODY_MAX, CARD_BACK, CARD_START_CM, CARD_SHRINK_SECS, CARD_GROW_TIERS, FOOD_HOT, FOOD_BG, FOOD_HOT_MOVE, CARD_SHRINK_TO, CARD_GROW_SECS, CARD_GROW_ACCEL, CARDS_POR_TIPO, CARD_BOOST_BELOW_CM, CARD_BOOST_TO_CM, CARD_BOOST_SECS, VIEW_SPAN, RAD } from "../shared/config.js";
 import { CAROL, isCarol, carolProf, carolBall, CAROL_LEN } from "../shared/carol.js";
 
 // card 3 (furacão): chance de a partida ter furacão, quantos cards no máximo (sorteia de 1 até HUR_MAX, cada um num momento diferente), janela de tempo em que aparecem (s), tempo de voo, tempo total sem controle, fração do tamanho que sobra ao bater no canto
@@ -17,7 +17,7 @@ export function createGame(human, bodies = [], mode = "time", heads = [], pnames
   const TM = mode === "time";   // "time": 10 min, renasce sem limite (bots também), vale o tamanho no fim | "elim": sem tempo, 3 vidas, bots não renascem, vence o último humano vivo
   let elimN = 0;   // quantos humanos já foram eliminados de vez (modo elim)
   const rnd = n => (Math.random() - .5) * n;
-    const R = s => { const x = s.cm / 4.76; return 10 + Math.min(x, 30) * 1.5 + Math.max(0, x - 30) * .3; };   // espessura cresce 4,76x mais devagar (a grossura que era de 42 cm agora é de ~200 cm)
+    const R = s => RAD(s.cm);   // espessura cresce 4,76x mais devagar (a grossura que era de 42 cm agora é de ~200 cm)
   const RH = s => R(s) * (s.carol ? CAROL.HEAD : 1);   // raio da cabeça (a MC Carol tem cabeça maior)
   const RB = s => s.carol ? carolBall(s.cm) : R(s);   // raio da parte mais larga do corpo (a MC Carol: a bola)
   const prf = (o, k) => o.carol ? carolProf(k / 3 / Math.max(1, o.nn - 1)) : TAPER(k / 3, o.nn);   // espessura relativa do corpo no ponto k

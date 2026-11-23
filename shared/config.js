@@ -220,3 +220,10 @@ export const VIEW_SPAN = cm => VIEW_TAB[Math.min(3000, Math.max(0, Math.round(cm
 export const FOOD_HOT = [[10, 10, 520], [20, 5, 460], [50, 2, 380], [10, .6, 320]];
 export const FOOD_BG = .03;              // fração da comida espalhada pelo mapa todo (0 = só nos pontos)
 export const FOOD_HOT_MOVE = [90, 150];  // a cada tantos segundos (sorteado entre os dois valores) um ponto muda de lugar
+
+// --- espessura do corpo (raio em px) por tamanho (cm): usada pelo servidor (colisão) e pelo navegador (desenho e previsão), por isso fica aqui ---
+export const THICK_DIV = 3.5;     // quanto MENOR, mais rápido a cobra engrossa enquanto come (era 4.76)
+export const THICK_CAP = 30;      // até este "tamanho dividido por THICK_DIV" a cobra engrossa rápido (THICK_SLOPE1 por unidade)
+export const THICK_SLOPE1 = 1.5;  // espessura ganha por unidade até o THICK_CAP
+export const THICK_SLOPE2 = .6;   // depois do THICK_CAP ela continua engrossando, mais devagar (era .3). Maior = cobra grande mais grossa
+export const RAD = cm => { const x = cm / THICK_DIV; return 10 + Math.min(x, THICK_CAP) * THICK_SLOPE1 + Math.max(0, x - THICK_CAP) * THICK_SLOPE2; };
