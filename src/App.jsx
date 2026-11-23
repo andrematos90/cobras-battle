@@ -111,6 +111,7 @@ function Lobby({ lob, send, muted, setMuted, notice, clearNotice, openDr, err, c
     <div className="menu lby">
       {cdv > 0 && lob.pend !== undefined && (pend || lob.cd > 0) && <div id="cd" key={cdv}><small>{pend && lob.pc > 0 && !(lob.cd > 0) ? "Sua cobra entra em" : "A partida começa em"}</small>{cdv}</div>}
       <div className="tbar">
+        <style>{`.lby .tbar{align-items:center;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100vw - 24px)}.lby .ib.tx{width:auto;height:38px;padding:0 12px;font-size:.85rem;font-weight:700;white-space:nowrap}.onl{color:#39ff14;font-weight:800;font-size:.95rem;text-shadow:0 0 6px #39ff14,0 0 14px #39ff14;animation:onlp 1.1s ease-in-out infinite;white-space:nowrap}@keyframes onlp{0%,100%{opacity:1;text-shadow:0 0 6px #39ff14,0 0 14px #39ff14}50%{opacity:.45;text-shadow:0 0 2px #39ff14}}`}</style>
         <span className="onl">● Online agora: {lob.on}</span>
         <button className="ib tx" data-tip={muted ? "Ligar o som" : "Desligar o som"} onClick={() => setMuted(toggleMute())}>{muted ? "Som: desligado" : "Som"}</button>
         <VoiceIcon txt />
