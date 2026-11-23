@@ -65,4 +65,6 @@ export function rows() {
     .sort((a, b) => b.wins - a.wins || b.best - a.best || b.plays - a.plays)
     .map(d => ({ n: d.name, h: d.head, w: d.wins, wt: d.winsTime, we: d.winsElim, p: d.plays, b: d.best, t: d.total, s: d.secs }));
 }
+// estatísticas de hoje dos personagens de uma conta (vitórias, melhor tamanho, partidas), na ordem dos personagens 0, 1 e 2
+export function mine(sub) { roll(); return [0, 1, 2].map(i => { const d = cache.get(sub + ":" + i); return d ? { w: d.wins, b: d.best, p: d.plays } : { w: 0, b: 0, p: 0 }; }); }
 export const today = () => { roll(); return day; };

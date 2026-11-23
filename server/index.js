@@ -39,7 +39,7 @@ function guestName() {
   const use = new Set(slots.filter(Boolean).map(w => lc(nameOf(w)))), ok = ALLBOT.filter(n => !use.has(lc(n)) && n.length <= 14);
   const l = ok.length ? ok : ALLBOT; return l[Math.random() * l.length | 0];
 }
-const lobbyMsg = ws => ({ t: "lobby", st: state, kind: ws.kind || null, u: ws.kind === "acc" ? accounts.publicUser(ws.user) : null, body: ws.body, you: slots.indexOf(ws), pend: !!ws.pend, pc: ws.pc || 0, n: slots.filter(Boolean).length, mx: NSEL, on: online().filter(w => w.kind).length, cd: cdN, mode, terrain, teams, tm: ws.team ?? -1, host: adm() === ws, sb: boardList() });
+const lobbyMsg = ws => ({ t: "lobby", st: state, kind: ws.kind || null, u: ws.kind === "acc" ? accounts.publicUser(ws.user) : null, ds: ws.kind === "acc" && ws.user ? daily.mine(ws.user.sub) : null, body: ws.body, you: slots.indexOf(ws), pend: !!ws.pend, pc: ws.pc || 0, n: slots.filter(Boolean).length, mx: NSEL, on: online().filter(w => w.kind).length, cd: cdN, mode, terrain, teams, tm: ws.team ?? -1, host: adm() === ws, sb: boardList() });
 // equipe sorteada: vai para a que tem menos gente (diferença máxima de 1); empate = cara ou coroa
 function pickTeam(ws) {
   const c = [0, 0]; for (const w of slots) if (w && w !== ws && w.team >= 0) c[w.team]++;
