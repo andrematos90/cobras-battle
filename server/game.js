@@ -65,7 +65,7 @@ export function createGame(human, bodies = [], mode = "time", heads = [], pnames
     const s = { i, carol: car, ch: 0, cg: 0, at: car ? (CAROL.TEST ? .5 + (i % 4) * .4 : CAROL.APPEAR[0] + Math.random() * (CAROL.APPEAR[1] - CAROL.APPEAR[0])) : 0, cap: false,   // carol: ch = batidas, cg = espera entre batidas, at = momento em que aparece, cap = já apareceu
       sk: car ? CAROL.SKIN : i < NSEL ? (bodies[i] ?? (i * 2) % NB) : Math.random() * NB | 0, nm: car ? CAROL.NAME : i < NSEL ? (human[i] && pnames[i] ? pnames[i] : HEAD_NAMES[HD[i]]) : BN[(i - NSEL) % BN.length],
       x, y, a: Math.random() * 6.28, ta: 0, cm: .1, segs: [],
-      bot: !(i < NSEL && human[i]), guest: i < NSEL && !!human[i] && !!guests[i], team: TEAMON && i < NSEL && human[i] && teams[i] >= 0 ? teams[i] : -1, lives: !TM && i < NSEL && human[i] ? LIVES : 0, hp: 0, gr: 0, ex: 0, inv: 0, stf: 0, best: 0, alive: !car, t: 0, boost: false, cr: false, inp: { a: 0, b: false, k: false }, lx: x, ly: y, fin: 0, dd: 0, tr: [], t0: 0, fx: null, mk: 0, rr: 10, nn: 5, bx0: 0, bx1: 0, by0: 0, by1: 0 };
+      bot: !(i < NSEL && human[i]), guest: i < NSEL && !!human[i] && !!guests[i], team: TEAMON && i < NSEL && human[i] && teams[i] >= 0 ? teams[i] : -1, lives: !TM && i < NSEL && human[i] ? LIVES : 0, hp: 0, gr: 0, ex: 0, inv: 0, stf: 0, best: 0, alive: !car, t: 0, boost: false, cr: false, inp: { a: 0, b: false, k: false }, lx: x, ly: y, fin: 0, ab: 0, dd: 0, tr: [], t0: 0, fx: null, mk: 0, rr: 10, nn: 5, bx0: 0, bx1: 0, by0: 0, by1: 0 };
     for (let j = 0; j < 14; j++) s.segs.push({ x, y });
     return s;
   };
@@ -135,7 +135,7 @@ export function createGame(human, bodies = [], mode = "time", heads = [], pnames
     return [bx, by];
   };
   for (const s of sn) if (s.bot && !s.carol) { const [px, py] = spawnAt(s); s.x = s.lx = px; s.y = s.ly = py; for (const q of s.segs) { q.x = px; q.y = py; } }   // bots do começo da partida também nascem longe dos humanos
-  const G = { team: TEAMON, hu: -1, hc: [], sn, sk: sn.map(s => s.sk), hd: HD, names: sn.map(s => s.nm), over: false, dead: [], eats: [], pk: [], pop: [], hits: [], pp: [], cp: [], boom: [] };
+  const G = { team: TEAMON, hu: -1, hc: [], sn, sk: sn.map(s => s.sk), hd: HD, names: sn.map(s => s.nm), over: false, dead: [], eats: [], pk: [], pop: [], hits: [], kf: [], pp: [], cp: [], boom: [] };
   const flyers = [];   // bolinhas da explosão da MC Carol ainda no ar
 
   const die = s => {
@@ -163,7 +163,7 @@ export function createGame(human, bodies = [], mode = "time", heads = [], pnames
   };
 
   G.step = dt => {
-    G.hu = -1; G.hc = []; G.dead = []; G.eats = []; G.pk = []; G.pop = []; G.hits = []; G.pp = []; G.cp = []; G.boom = [];
+    G.hu = -1; G.hc = []; G.dead = []; G.eats = []; G.pk = []; G.pop = []; G.hits = []; G.kf = []; G.pp = []; G.cp = []; G.boom = [];
     for (const w of cards) if (w.gone && el >= w.back) Object.assign(w, ncard(w.t, w.id));
     while (c3T.length && el >= c3T[0]) { c3T.shift(); c3s.push({ x: rnd(WD - 800), y: rnd(WD - 800), t: 2, id: 9 + c3s.length, gone: false, back: 0 }); }   // cada card aparece uma vez, em qualquer lugar do mapa
     if (HUR_TESTE) for (const w of c3s) if (w.gone && el >= w.back) Object.assign(w, { x: rnd(WD - 800), y: rnd(WD - 800), gone: false });
@@ -282,7 +282,7 @@ export function createGame(human, bodies = [], mode = "time", heads = [], pnames
           if (Math.abs(qq.x - s.x) < lk && Math.abs(qq.y - s.y) < lk && Math.hypot(qq.x - s.x, qq.y - s.y) < lk) {
             o.mk = st; touch = true;   // cada cobra só conta uma vez por tick
             if (s.carol) { if (s.cg <= 0) { s.ch++; s.cg = CAROL.HIT_CD; if (s.ch >= CAROL.HITS) { die(s); break col; } } }   // MC Carol: cada batida da cabeça conta; na 3ª ela explode
-            else if (s.hp > 0) { if (s.gr <= 0) { s.hp--; s.gr = 1; if (s.hp === 0) s.ex = 8; G.pop.push([s.x | 0, s.y | 0, s.i, s.hp]); } } else if (s.ex <= 0) { die(s); if (!o.bot) G.hits.push([o.i, s.i, s.x | 0, s.y | 0]); break col; }   // camisinha: cada toque fura mais; no 3º ela estoura e a cobra sai de dentro — enquanto sai (ex) não morre; só depois disso um toque custa a vida
+            else if (s.hp > 0) { if (s.gr <= 0) { s.hp--; s.gr = 1; if (s.hp === 0) s.ex = 8; G.pop.push([s.x | 0, s.y | 0, s.i, s.hp]); } } else if (s.ex <= 0) { die(s); o.ab++; if (!o.bot || !s.bot) G.kf.push([o.i, s.i]); if (!o.bot) G.hits.push([o.i, s.i, s.x | 0, s.y | 0]); break col; }   // camisinha: cada toque fura mais; no 3º ela estoura e a cobra sai de dentro — enquanto sai (ex) não morre; só depois disso um toque custa a vida
           }
         }
       }
@@ -358,13 +358,13 @@ export function createGame(human, bodies = [], mode = "time", heads = [], pnames
     const all = sn.filter(s => !s.carol), T = teamResult();   // a MC Carol não entra no resultado (não pode ganhar)
     if (TM) {   // por tempo: ranking = tamanho que cada cobra tem quando o tempo fecha
       all.sort((a, b) => b.cm - a.cm);
-      return { l: all.map(s => [s.i, Math.round(s.cm * 10), 1]), w: all[0].i, tm: 1, md: mode, ...T };
+      return { l: all.map(s => [s.i, Math.round(s.cm * 10), 1, s.ab]), w: all[0].i, tm: 1, md: mode, ...T };
     }
     // eliminação: o tamanho final de cada cobra é a SOMA de todas as vidas dela (as que já acabaram + a atual)
     const hum = s => !s.bot && s.i < NSEL, tot = s => (s.tot || 0) + (s.alive ? s.cm : 0), te = !!G.te;
     // tempo esgotado com mais de uma cobra viva: as vivas vêm primeiro, da maior soma para a menor; sem tempo (último humano vivo): humanos vivos primeiro, como antes
     all.sort((a, b) => a.alive !== b.alive ? (a.alive ? -1 : 1) : a.alive ? (te ? tot(b) - tot(a) : (hum(a) !== hum(b) ? (hum(a) ? -1 : 1) : tot(b) - tot(a))) : b.dd - a.dd);
-    return { l: all.map(s => [s.i, Math.round(tot(s) * 10), s.alive ? 1 : 0]), w: all[0].i, tm: 0, te: te ? 1 : 0, md: mode, ...T };
+    return { l: all.map(s => [s.i, Math.round(tot(s) * 10), s.alive ? 1 : 0, s.ab]), w: all[0].i, tm: 0, te: te ? 1 : 0, md: mode, ...T };
   };
   const spec = {}; let force = false;
   const humanAlive = () => sn.filter(s => !s.bot && s.i < NSEL && s.alive).length;
@@ -394,7 +394,7 @@ export function createGame(human, bodies = [], mode = "time", heads = [], pnames
     }
     const f = []; near(cx, cy, B, c => { for (const o of c) if (Math.abs(o.x - cx) < B && Math.abs(o.y - cy) < B) f.push(o.x | 0, o.y | 0, o.d ? (o.yl ? 7 : 4) : o.e === 5 && el - o.t < 1 ? 6 : o.e); });   // 6 = sorvete recém-criado (o navegador o desenha caindo do céu)
     for (const o of flyers) { const u = Math.min(1, (el - o.t0) / o.dur), q = 1 - Math.pow(1 - u, 2.5), x = o.x0 + (o.x1 - o.x0) * q, y = o.y0 + (o.y1 - o.y0) * q; if (Math.abs(x - cx) < B && Math.abs(y - cy) < B) f.push(x | 0, y | 0, o.yl ? 9 : 8); }   // bolinhas da explosão ainda voando: 8 = verde, 9 = amarela
-    return { t: "s", bm: G.boom, x: cx | 0, y: cy | 0, al: p.alive ? 1 : 0, sp, hd: humanAlive(), ns, f, m: sn.slice(0, NSEL).filter(s => s.alive).map(s => [s.i, s.x | 0, s.y | 0]),
+    return { t: "s", bm: G.boom, kf: G.kf, ab: p.ab, x: cx | 0, y: cy | 0, al: p.alive ? 1 : 0, sp, hd: humanAlive(), ns, f, m: sn.slice(0, NSEL).filter(s => s.alive).map(s => [s.i, s.x | 0, s.y | 0]),
       ea: G.eats.filter(e => Math.abs(e[0] - cx) < B && Math.abs(e[1] - cy) < B), dx: G.dead.filter(e => Math.abs(e[0] - cx) < B && Math.abs(e[1] - cy) < B),
       lf: TM ? -1 : p.lives, ts: G.ts, hp: p.hp, ht: G.hits.filter(h => h[0] === i).map(h => [h[2], h[3], h[1]]), pop: G.pop.filter(e => Math.abs(e[0] - cx) < B && Math.abs(e[1] - cy) < B), pw: pw.filter(w => !w.gone && Math.abs(w.x - cx) < B + 100 && Math.abs(w.y - cy) < B + 100).map(w => [w.x | 0, w.y | 0]), pl: pills.filter(w => !w.gone && Math.abs(w.x - cx) < B + 100 && Math.abs(w.y - cy) < B + 100).map(w => [w.x | 0, w.y | 0]), pp: G.pp.filter(e => Math.abs(e[0] - cx) < B && Math.abs(e[1] - cy) < B), pk: G.pk.filter(e => Math.abs(e[0] - cx) < B && Math.abs(e[1] - cy) < B), cd: (c3s.length ? [...cards, ...c3s] : cards).filter(w => !w.gone && Math.abs(w.x - cx) < B + 100 && Math.abs(w.y - cy) < B + 100).map(w => [w.x | 0, w.y | 0, w.t, w.id]), hu: G.hu, hc: G.hc.filter(e => Math.abs(e[0] - cx) < B + 300 && Math.abs(e[1] - cy) < B + 300), cp: G.cp.filter(e => Math.abs(e[0] - cx) < B && Math.abs(e[1] - cy) < B), ag: ag > 0 ? 1 : 0, tl: Math.max(0, TIME - el) | 0, n: sn.filter(s => s.alive && !s.carol).length };
   };

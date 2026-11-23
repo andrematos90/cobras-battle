@@ -131,7 +131,8 @@ function start() {
 // Ranking do Dia: só contas (convidado não entra)
 function recordFor(ws, i, final, best, win) {
   if (!ws.user) return;
-  daily.record(ws.user.sub, { ci: ws.ci, name: ws.nm, head: ws.head, final, best, win: !!win, mode, secs: (Date.now() - (ws.tin || Date.now())) / 1000 });
+  const sx = G && G.sn[i], kills = sx ? sx.ab - (sx.abr || 0) : 0; if (sx) sx.abr = sx.ab;   // abates ainda não gravados (não conta duas vezes se a pessoa saiu e voltou)
+  daily.record(ws.user.sub, { kills, ci: ws.ci, name: ws.nm, head: ws.head, final, best, win: !!win, mode, secs: (Date.now() - (ws.tin || Date.now())) / 1000 });
 }
 // reconexão: quem caiu no meio da partida tem HOLD_MS para voltar e reassumir a mesma cobra (enquanto isso ela joga sozinha como bot)
 function hold(ws) {

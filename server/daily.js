@@ -9,7 +9,7 @@ let day = dayKey(), col = null;
 let cache = new Map();         // sub (id da conta) -> documento do dia
 const dirty = new Map();       // _id -> documento que ainda não foi gravado no banco
 
-const blank = (key, name, sub, head) => ({ _id: day + "|" + key, v: 3, day, key, sub, name: name || "", head, plays: 0, wins: 0, winsTime: 0, winsElim: 0, best: 0, total: 0, secs: 0, upd: Date.now(), exp: new Date(Date.now() + KEEP_DAYS * 864e5) });
+const blank = (key, name, sub, head) => ({ _id: day + "|" + key, v: 3, day, key, sub, name: name || "", head, plays: 0, kills: 0, wins: 0, winsTime: 0, winsElim: 0, best: 0, total: 0, secs: 0, upd: Date.now(), exp: new Date(Date.now() + KEEP_DAYS * 864e5) });
 
 function roll() {   // virou o dia (meia-noite em Brasília): zera o cache; o que faltava gravar do dia anterior continua na fila
   const k = dayKey(); if (k === day) return false;
@@ -45,12 +45,13 @@ onDb(async db => {
 });
 
 // final: tamanho final (cm) | best: maior tamanho (cm) | win: venceu? | mode: "time" | "elim" | secs: tempo jogado
-export function record(sub, { ci, name, head, final, best, win, mode, secs }) {
+export function record(sub, { ci, name, head, final, best, win, mode, secs, kills }) {
   if (!sub || ci == null) return; roll();
   const key = sub + ":" + ci;   // uma linha por personagem (até 3 por conta)
   let d = cache.get(key); if (!d) { d = blank(key, name, sub, head); cache.set(key, d); d.ci = ci; }
   if (name) d.name = name;
   if (head != null && head >= 0) d.head = head;
+  d.kills = (d.kills || 0) + Math.max(0, kills | 0);
   d.plays++; d.total = Math.round((d.total + (final || 0)) * 10) / 10; d.best = Math.max(d.best, Math.round((best || 0) * 10) / 10); d.secs += Math.max(0, secs | 0);
   if (win) { d.wins++; if (mode === "elim") d.winsElim++; else d.winsTime++; }
   touch(d);
@@ -62,8 +63,8 @@ export function rename(sub, ci, name) { roll(); const d = cache.get(sub + ":" + 
 export function rows() {
   roll();
   return [...cache.values()].filter(d => d.plays > 0)
-    .sort((a, b) => b.wins - a.wins || b.best - a.best || b.plays - a.plays)
-    .map(d => ({ n: d.name, h: d.head, w: d.wins, wt: d.winsTime, we: d.winsElim, p: d.plays, b: d.best, t: d.total, s: d.secs }));
+    .sort((a, b) => b.total - a.total || b.best - a.best || b.plays - a.plays)
+    .map(d => ({ n: d.name, h: d.head, w: d.wins, wt: d.winsTime, we: d.winsElim, p: d.plays, k: d.kills || 0, b: d.best, t: d.total, s: d.secs }));
 }
 // estatísticas de hoje dos personagens de uma conta (vitórias, melhor tamanho, partidas), na ordem dos personagens 0, 1 e 2
 export function mine(sub) { roll(); return [0, 1, 2].map(i => { const d = cache.get(sub + ":" + i); return d ? { w: d.wins, b: d.best, p: d.plays } : { w: 0, b: 0, p: 0 }; }); }

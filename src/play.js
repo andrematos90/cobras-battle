@@ -22,7 +22,7 @@ export const CARD_IMGS = [0, 1, 2].map(i => {
 });
 export const ST = { snakes: new Map(), food: [], m: [], l: [], lv: 0 };
 export function resetStore(m) {
-  Object.assign(ST, { fl: {}, hm: 0, tr: m.tr || "stone", you: m.you, names: m.names, sk: m.sk, heads: m.heads, snakes: new Map(), food: [], m: [], l: [], lv: 0, x: 0, y: 0, al: 1, ag: 0, md: m.md, tl: 600, n: 50, lf: m.md === "elim" ? LIVES : -1, hp: 0, shed: [], pw: [], pl: [], hits: [], tails: [], P: null, kl: 0, pb: 2.2, jv: 0, la: performance.now(), lastC: 0, shake: 0, dead: false, drops: 0, tp: 0, te: 0, tm: m.tm || [], tmode: !!m.tmode, ts: null, lead: null, leadT: 0, mx: null, hurOff: 0, off: null, rm: null });
+  Object.assign(ST, { fl: {}, hm: 0, tr: m.tr || "stone", you: m.you, names: m.names, sk: m.sk, heads: m.heads, snakes: new Map(), food: [], m: [], l: [], lv: 0, x: 0, y: 0, al: 1, ag: 0, md: m.md, tl: 600, n: 50, lf: m.md === "elim" ? LIVES : -1, hp: 0, shed: [], pw: [], pl: [], hits: [], kfl: [], ab: 0, tails: [], P: null, kl: 0, pb: 2.2, jv: 0, la: performance.now(), lastC: 0, shake: 0, dead: false, drops: 0, tp: 0, te: 0, tm: m.tm || [], tmode: !!m.tmode, ts: null, lead: null, leadT: 0, mx: null, hurOff: 0, off: null, rm: null });
 }
 
 export const CHAO = new Image(); CHAO.src = CHAO_URL;
@@ -84,6 +84,7 @@ export function onSnap(m) {
   for (const [x, y, i] of m.pk || []) { spark(x, y, "#ffffff", 24, 7, 36); spark(x, y, "#fbcfe8", 14, 5, 30); if (i === ST.you) sfx.pop(); }
   for (const [x, y, i] of m.ea || []) spark(x, y, SK[ST.sk[i]].c, i === ST.you ? 7 : 4, 4, 22);
   for (const [x, y, i] of m.dx || []) { boom(x, y, i); if (i === ST.you) sfx.death(); }   // a selecionável renasce na hora: o som vem do evento de morte
+  ST.ab = m.ab || 0; for (const [a, b] of m.kf || []) ST.kfl.push([a, b, performance.now()]);   // placar de abates: [quem matou, quem morreu]
   for (const [x, y, i] of m.ht || []) ST.hits.push([x, y, i]);   // alguém bateu no meu corpo (o aviso só aparece se foi fora da tela)
   // buffer de reprodução: guarda os últimos snapshots (k = número do tick do servidor). O cabeçote ST.P (em ticks) anda um pouco atrás do snapshot mais novo
   // e muda de velocidade de leve (ver loop) para absorver oscilação da rede e engasgos do servidor sem congelar
@@ -359,8 +360,10 @@ export function runGame(cv, { hud, sc, dd, fin, tail, bn, vg, send }) {
       if (vc !== lastVg) { lastVg = vc; vg.className = vc; }
       if (ST.md === "elim") { ST.hm = Math.max(ST.hm, ST.hd || 0); if (ST.hd === 2 && ST.hm > 2 && !ST.fl.duel) { ST.fl.duel = 1; banner("⚔️ Só restam 2 jogadores vivos!", "#fbbf24"); } }
       const it = (ic, v) => `<span class="it"><i>${ic}</i>${v}</span>`;   // cada indicador num bloco com espaço entre o ícone e o valor
-      const sh = (ST.lf >= 0 ? `<span class="hr">${Array.from({ length: LIVES }, (_, k) => `<span>${k < ST.lf ? "♥" : "♡"}</span>`).join("")}</span>` : "") + it("📏", ST.lastC.toFixed(1) + " cm") + it("🐍", ST.n) + (tl >= 0 ? it("⏱", String(tl / 60 | 0).padStart(2, "0") + ":" + String(tl % 60).padStart(2, "0")) : "") + it("👥", ST.on || 1) + (ST.ts ? ST.ts.map((v, k) => `<span class="it" style="color:${TEAMS[k].c};font-weight:800"><i>${TEAMS[k].e}</i>${(v / 10).toFixed(1)}</span>`).join("") : "");   // por tempo: sem corações; eliminação: sem relógio
-      if (sh !== lastSc) { lastSc = sh; sc.innerHTML = sh; }   // só mexe no DOM quando o texto muda
+      const sh = (ST.lf >= 0 ? `<span class="hr">${Array.from({ length: LIVES }, (_, k) => `<span>${k < ST.lf ? "♥" : "♡"}</span>`).join("")}</span>` : "") + it("📏", ST.lastC.toFixed(1) + " cm") + it("⚔️", ST.ab) + it("🐍", ST.n) + (tl >= 0 ? it("⏱", String(tl / 60 | 0).padStart(2, "0") + ":" + String(tl % 60).padStart(2, "0")) : "") + it("👥", ST.on || 1) + (ST.ts ? ST.ts.map((v, k) => `<span class="it" style="color:${TEAMS[k].c};font-weight:800"><i>${TEAMS[k].e}</i>${(v / 10).toFixed(1)}</span>`).join("") : "");   // por tempo: sem corações; eliminação: sem relógio
+      if (sh !== lastSc) { lastSc = sh; sc.innerHTML = sh; }
+      { const kfe = document.getElementById("kf"); if (kfe) { const nw2 = performance.now(); ST.kfl = ST.kfl.filter(e => nw2 - e[2] < 6000).slice(-5);   // lista curta de quem eliminou quem (6 s cada, no máximo 5)
+        const kh = ST.kfl.map(([a, b]) => `<div class="kfr${a === ST.you ? " mine" : b === ST.you ? " dead" : ""}"><b>${esc(ST.names[a] || "?")}</b> ⚔️ ${esc(ST.names[b] || "?")}</div>`).join(""); if (kh !== kfe._h) { kfe._h = kh; kfe.innerHTML = kh; } } }   // só mexe no DOM quando o texto muda
       if (ST.lv !== lv) {
         lv = ST.lv;
         // ranking lateral: sempre os 10 primeiros; se eu estiver mais abaixo, mostra "⋮" e uma faixa ao redor de mim (metade acima, metade abaixo) até encher o painel

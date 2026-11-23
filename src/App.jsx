@@ -60,14 +60,14 @@ function DailyRank({ data, onClose, refresh }) {
         <h2>📅 Ranking do Dia {dd && <small>({dd})</small>}</h2>
         {!rows ? <p className="s">Carregando…</p> : !rows.length ? <p className="s">Ninguém com conta jogou hoje ainda. Entre com o Google e jogue uma partida para aparecer aqui!</p> : (
           <div className="drs"><table>
-            <thead><tr><th>#</th><th></th><th>Jogador</th><th title="Vitórias (⏱ por tempo · 💀 eliminação)">🏆</th><th>Partidas</th><th>Maior</th><th style={{ whiteSpace: "normal" }}>Tamanho da sua Cobra</th><th>Tempo</th></tr></thead>
+            <thead><tr><th>#</th><th></th><th>Jogador</th><th title="Vitórias (⏱ por tempo · 💀 eliminação)">🏆</th><th>Partidas</th><th title="Abates (cobras que você eliminou hoje)">⚔️ Abates</th><th>Maior</th><th style={{ whiteSpace: "normal" }}>Tamanho total da cobra 😏</th><th>Tempo</th></tr></thead>
             <tbody>{rows.map((r, i) => (
               <tr key={i}>
                 <td>{i + 1}</td>
                 <td>{r.h != null && <img className="rh" src={"/cobra" + (r.h + 1) + ".png"} alt="" onError={e => { e.target.style.visibility = "hidden"; }} />}</td>
                 <td className="rn">{r.n}</td>
                 <td><b>{r.w}</b>{r.w > 0 && <small> (⏱{r.wt} 💀{r.we})</small>}</td>
-                <td>{r.p}</td><td>{r.b.toFixed(1)} cm</td><td>{r.t.toFixed(1)} cm</td><td>{fmtT(r.s)}</td>
+                <td>{r.p}</td><td>{r.k || 0}</td><td>{r.b.toFixed(1)} cm</td><td>{r.t.toFixed(1)} cm</td><td>{fmtT(r.s)}</td>
               </tr>))}</tbody>
           </table></div>)}
         <div className="act"><button className="btn g" onClick={refresh}>↻ Atualizar</button><button className="btn" onClick={onClose}>Fechar</button></div>
@@ -194,6 +194,8 @@ function Game({ send, muted, setMuted }) {
       <div id="vg" ref={vg} />
       <div id="bn" ref={bn} />
       <div id="hud" ref={hud} />
+      <div id="kf" />
+      <style>{`#kf{position:fixed;left:10px;top:76px;z-index:6;pointer-events:none;display:flex;flex-direction:column;gap:3px;max-width:42vw}#kf .kfr{background:#000a;color:#e5e7eb;font-size:.8rem;padding:3px 9px;border-radius:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;animation:kfin .25s ease-out}#kf .kfr b{color:#fbbf24}#kf .kfr.mine{border-left:3px solid #39ff14}#kf .kfr.dead{border-left:3px solid #ff2a2a}@keyframes kfin{from{opacity:0;transform:translateX(-14px)}}`}</style>
       <div id="tl">
         <div id="mt" onClick={() => setMuted(toggleMute())}>{muted ? "🔇" : "🔊"}</div>
         <VoiceIcon />
@@ -216,6 +218,7 @@ function Rank({ rank }) {
           <div key={n} className={"tr" + (r.me ? " me" : "")}>
             <span className="pos">{ci * 10 + n + 1}</span>
             <span className="nm2" style={r.t >= 0 ? { color: TEAMS[r.t].c } : null}>{r.main && <b className="ar">▶ </b>}{r.n}</span>
+            {r.k != null && <span className="cm" title="Abates">⚔️ {r.k}</span>}
             <span className="cm">{r.cm.toFixed(1)} cm</span>
           </div>))}
         </div>))}
@@ -271,7 +274,7 @@ export default function App() {
 
   if (scr === "play") return <><Game key={gk} send={send} muted={muted} setMuted={setMuted} />{rc > 0 && <div className="rcn"><div><i>🔄</i> Conexão perdida</div><div>Reconectando… (tentativa {rc})</div><small>Sua cobra continua jogando sozinha por até 45 segundos. Se o servidor estava dormindo, pode levar até 1 minuto para acordar. Não feche esta página.</small></div>}</>;
   if (scr === "end" && end) {
-    const rank = end.l.map(([i, c]) => ({ n: ST.names[i], cm: c / 10, main: i < NSEL, me: i === ST.you, t: end.teams && ST.tm ? ST.tm[i] : -1 }));
+    const rank = end.l.map(([i, c, , k]) => ({ k, n: ST.names[i], cm: c / 10, main: i < NSEL, me: i === ST.you, t: end.teams && ST.tm ? ST.tm[i] : -1 }));
     return (
       <><VoiceBar /><div className="ov">
         <h1>🏆 Ranking final</h1>
