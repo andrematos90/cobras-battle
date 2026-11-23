@@ -1,5 +1,7 @@
 import { WD, TIME, NS, NSEL, NH, HEAD_NAMES, BOT_NAMES, BOT_NAMES2, BOT_NAMES_EXTRA, LIVES, NB, CONDOMS, CONDOM_HITS, TAPER, DROP_V, INV_TIME, PILLS, PILL_STIFF, PILL_MAX_CM, PILL_BACK, TURN_R0, TURN_RK, EAT_PAD, MAX_DROPS, BODY_MAX, CARD_BACK, CARD_START_CM, CARD_SHRINK_SECS, CARD_GROW_TIERS, FOOD_HOT, FOOD_BG, FOOD_HOT_MOVE, CARD_SHRINK_TO, CARD_GROW_SECS, CARD_GROW_ACCEL, CARDS_POR_TIPO, CARD_BOOST_BELOW_CM, CARD_BOOST_TO_CM, CARD_BOOST_SECS, VIEW_SPAN } from "../shared/config.js";
 import { CAROL, isCarol, carolProf, carolBall, CAROL_LEN } from "../shared/carol.js";
+const SPEED_MUL = 1.15;   // velocidade de todas as cobras (1 = original, 1.15 = 15% mais rápida). Tem que ser o MESMO valor em src/play.js
+
 
 // card 3 (furacão): chance de a partida ter furacão, quantos cards no máximo (sorteia de 1 até HUR_MAX, cada um num momento diferente), janela de tempo em que aparecem (s), tempo de voo, tempo total sem controle, fração do tamanho que sobra ao bater no canto
 const HUR_TESTE = false;   // true = MODO TESTE: 8 cards de furacão desde o começo de TODA partida (voltam 15 s depois de pegos). Mude para false para voltar ao normal (30% das partidas, 1 a 3 cards)
@@ -238,8 +240,8 @@ export function createGame(human, bodies = [], mode = "time", heads = [], pnames
       const df = Math.atan2(Math.sin(s.ta - s.a), Math.cos(s.ta - s.a));
       // raio mínimo da curva (px) cresce com o tamanho: cobra pequena faz curva fechada (pega a comida), a gigante faz curva larga. Giro por tick = passo normal / raio
       const spf = (1 + BIG_BONUS * Math.max(0, Math.min(1, (s.cm - BIG_FROM) / (BIG_FULL - BIG_FROM)))) * (s.carol ? CAROL.SPEED : 1);   // cobra grande é mais rápida: +0% até 100 cm, subindo até +50% aos 200 cm (e além)
-      const mt = Math.min(1.2 * spf, 4.8 * dt * spf / (TURN_R0 + Math.max(0, r - 10) * TURN_RK)) * (!s.bot && s.inp.k ? 1.5 : 1) * (s.bot && s.agr && ag > 0 ? 1.35 : 1);
-      if (!s.hv) { s.a += Math.max(-mt, Math.min(mt, df)); const sp = (bo ? 8.2 : 4.8) * dt * spf; s.x += Math.cos(s.a) * sp; s.y += Math.sin(s.a) * sp; }   // com furacão a posição já foi decidida acima
+      const mt = Math.min(1.2 * spf * SPEED_MUL, 4.8 * SPEED_MUL * dt * spf / (TURN_R0 + Math.max(0, r - 10) * TURN_RK)) * (!s.bot && s.inp.k ? 1.5 : 1) * (s.bot && s.agr && ag > 0 ? 1.35 : 1);
+      if (!s.hv) { s.a += Math.max(-mt, Math.min(mt, df)); const sp = (bo ? 8.2 : 4.8) * SPEED_MUL * dt * spf; s.x += Math.cos(s.a) * sp; s.y += Math.sin(s.a) * sp; }   // com furacão a posição já foi decidida acima
       const gap = s.carol ? RB(s) * .1 : r * .5, n = s.carol ? Math.ceil(CAROL_LEN * RB(s) / gap) + 1 : Math.max(8, Math.min(L(s), Math.floor(Math.min(BODY_MAX, 4500 + 9 * s.cm) / gap) + 1));   // comprimento do corpo (px) cresce com o tamanho: 4500 + 9 px por cm, até BODY_MAX   // mesma quantidade de pontos de antes da cobra ficar fina (menos trabalho e menos dados na rede)  // mesma quantidade de pontos de antes da cobra ficar fina (menos trabalho e menos dados na rede)  // BODY_MAX: comprimento máximo do corpo em px
       layout(s, gap, n);
       near(s.x, s.y, r + EAT_PAD + 4, c => {

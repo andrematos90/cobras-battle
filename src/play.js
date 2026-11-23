@@ -142,6 +142,7 @@ function teamFlag(g, c, n, hd, r, col, t) {
 // O servidor manda a posição de uma cobra que reflete comandos enviados há ~1 ida e volta (RTT). Aqui refazemos, com as MESMAS regras de giro e velocidade do servidor,
 // o caminho da cabeça desde esse ponto até agora usando os comandos que o jogador deu nesse tempo. Assim a cabeça responde na hora; o servidor continua mandando em tudo (se discordar, a cabeça se corrige).
 const PREDICT = true;   // false = desliga a previsão (volta a mostrar só o que o servidor mandou)
+const SPEED_MUL = 1.15;   // mesmo valor do servidor (server/game.js)
 const TD = TICK / 16.667, BIG_FROM = 100, BIG_FULL = 200, BIG_BONUS = .5;   // mesmos valores do servidor (server/game.js)
 export function onPong(m) {   // resposta do ping: mede a ida e volta (suavizada; picos isolados são limitados)
   if (typeof m.c !== "number") return;
@@ -151,9 +152,9 @@ export function onPong(m) {   // resposta do ping: mede a ida e volta (suavizada
 }
 function simStep(p, ta, boost, k, f) {   // um tick do servidor (f = fração do tick)
   const cm = p.cm, r = R(cm), spf = 1 + BIG_BONUS * Math.max(0, Math.min(1, (cm - BIG_FROM) / (BIG_FULL - BIG_FROM)));
-  const df = Math.atan2(Math.sin(ta - p.a), Math.cos(ta - p.a)), mt = Math.min(1.2 * spf * f, 4.8 * TD * f * spf / (TURN_R0 + Math.max(0, r - 10) * TURN_RK)) * (k ? 1.5 : 1);
+  const df = Math.atan2(Math.sin(ta - p.a), Math.cos(ta - p.a)), mt = Math.min(1.2 * spf * f * SPEED_MUL, 4.8 * SPEED_MUL * TD * f * spf / (TURN_R0 + Math.max(0, r - 10) * TURN_RK)) * (k ? 1.5 : 1);
   p.a += Math.max(-mt, Math.min(mt, df));
-  const sp = (boost && cm > .4 ? 8.2 : 4.8) * TD * f * spf; p.x += Math.cos(p.a) * sp; p.y += Math.sin(p.a) * sp;
+  const sp = (boost && cm > .4 ? 8.2 : 4.8) * SPEED_MUL * TD * f * spf; p.x += Math.cos(p.a) * sp; p.y += Math.sin(p.a) * sp;
 }
 const RABO_SND_MAX_CM = 35, ALERT_BIG_CM = 120, ALERT_GAP = 8000;   // som do rabo só até 35 cm; acima de 120 cm os alertas visuais têm intervalo de 8 s
 
@@ -205,7 +206,7 @@ export function runGame(cv, { hud, sc, dd, fin, tail, bn, vg, send }) {
     const u0 = mx.k * TICK + ST.off - (Math.min(500, ST.rm) + 4), T = Math.min(900, Math.max(0, now - u0)),   // u0: instante do comando que o estado do servidor (tick k) já reflete; ancorado no número do tick, não no horário de chegada do pacote
       p = { x: mx.x, y: mx.y, a: mx.a, cm: mx.cm }, out = [];
     for (let tt = 0; tt < T;) { const f = Math.min(TICK, T - tt) / TICK; tt += TICK; const e = inAt(u0 + Math.min(tt, T)); simStep(p, e.a, e.b, e.k, f); out.push(p.x, p.y); }
-    const last = inH[inH.length - 1], spd = (last.b && mx.cm > .4 ? 8.2 : 4.8) * TD / TICK * (1 + BIG_BONUS * Math.max(0, Math.min(1, (mx.cm - BIG_FROM) / (BIG_FULL - BIG_FROM)))), hz = T + Math.max(0, ST.kl - ST.P) * TICK;
+    const last = inH[inH.length - 1], spd = (last.b && mx.cm > .4 ? 8.2 : 4.8) * SPEED_MUL * TD / TICK * (1 + BIG_BONUS * Math.max(0, Math.min(1, (mx.cm - BIG_FROM) / (BIG_FULL - BIG_FROM)))), hz = T + Math.max(0, ST.kl - ST.P) * TICK;
     if (Math.hypot(p.x - me.cur[0], p.y - me.cur[1]) > spd * hz * 1.4 + 120) { ps = null; return null; }   // longe demais do que o servidor mostra (renasceu, foi levada...): não prevê
     if (!ps) ps = { x: p.x, y: p.y }; else { const k = 1 - Math.exp(-fdt / .025); ps.x += (p.x - ps.x) * k; ps.y += (p.y - ps.y) * k; if (Math.hypot(p.x - ps.x, p.y - ps.y) > 200) { ps.x = p.x; ps.y = p.y; } }
     const buf = []; for (let q = me.h.length - 1; q >= 0; q--) { const e = me.h[q]; if (e.k <= ST.P) break; buf.push(e.p[0], e.p[1]); }   // cabeças dos snapshots que chegaram mas ainda não foram mostrados
