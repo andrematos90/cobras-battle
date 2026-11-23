@@ -36,18 +36,18 @@ const MODES = {
   elim: { t: "💀 Eliminação (10 min)", d: "Cada jogador tem 3 corações; zerou, está fora. Bots não renascem. Se sobrar só 1 jogador vivo, ele vence; se os 10 minutos acabarem com mais de uma cobra viva, vence a maior. O tamanho final de cada cobra é a soma de todas as vidas dela." },
 };
 // "Modo de Jogo:" e "Terreno:" em linhas com os botões; só o admin (online mais antigo) pode trocar, os outros veem a escolha
-function ModePick({ lob, send, open }) {
+function ModePick({ lob, send, open, part }) {   // part: "mode" (Modo de Jogo), "teams" (Equipes) ou "terrain" (Terreno): cada um é uma linha
   const tr = lob.terrain || "stone", m = lob.mode, can = open && lob.host;
-  return (
-    <div className="mode">
-      <div className="orow"><b>Modo de Jogo:</b>{Object.entries(MODES).map(([k, v]) => <button key={k} disabled={!can} className={"btn mb" + (m === k ? " on" : " g")} onClick={() => { sfx.click(); send({ t: "mode", m: k }); }}>{v.t}</button>)}</div>
+  if (part === "mode") return (
+    <div className="pnl rw"><div className="rl"><b>🎮 Modo de Jogo:</b><div className="rb">{Object.entries(MODES).map(([k, v]) => <button key={k} disabled={!can} className={"btn mb" + (m === k ? " on" : " g")} onClick={() => { sfx.click(); send({ t: "mode", m: k }); }}>{v.t}</button>)}</div></div>
       {m && <p className="s">{MODES[m].d}</p>}
-      <div className="orow"><b>Equipes:</b><label className={"cbx" + (can ? "" : " off")}><input type="checkbox" disabled={!can} checked={!!lob.teams} onChange={e => { sfx.click(); send({ t: "teams", v: e.target.checked }); }} /> Por equipe ({TEAMS[0].e} {TEAMS[0].n} × {TEAMS[1].e} {TEAMS[1].n})</label></div>
+    </div>);
+  if (part === "teams") return (
+    <div className="pnl rw"><div className="rl"><b>👥 Equipes:</b><div className="rb"><label className={"cbx" + (can ? "" : " off")}><input type="checkbox" disabled={!can} checked={!!lob.teams} onChange={e => { sfx.click(); send({ t: "teams", v: e.target.checked }); }} /> Por equipe ({TEAMS[0].e} {TEAMS[0].n} × {TEAMS[1].e} {TEAMS[1].n})</label></div></div>
       {lob.teams && <p className="s">Cada jogador é sorteado para uma equipe ao clicar em JOGAR. Cobras da mesma equipe se atravessam sem morrer. Vence a equipe com a maior soma de tamanho. Esta partida não conta vitórias no Ranking do Dia.</p>}
-      <div className="orow"><b>Terreno:</b>{TERRAINS.map(([k, t]) => <button key={k} disabled={!can} className={"btn mb" + (tr === k ? " on" : " g")} onClick={() => { sfx.click(); send({ t: "terrain", v: k }); }}>{t}</button>)}</div>
-      <p className="s">{can ? "👑 Você é o admin: só você escolhe o modo e o terreno." : "👑 Só o admin (o mais antigo online) escolhe o modo e o terreno."}</p>
-    </div>
-  );
+    </div>);
+  return (
+    <div className="pnl rw"><div className="rl"><b>🏔️ Terreno:</b><div className="rb">{TERRAINS.map(([k, t]) => <button key={k} disabled={!can} className={"btn mb" + (tr === k ? " on" : " g")} onClick={() => { sfx.click(); send({ t: "terrain", v: k }); }}>{t}</button>)}</div></div></div>);
 }
 
 const fmtT = s => s >= 3600 ? (s / 3600).toFixed(1).replace(".", ",") + " h" : Math.max(1, Math.round(s / 60)) + " min";
@@ -86,10 +86,12 @@ function Board({ sb }) {
 function Lobby({ lob, send, muted, setMuted, notice, clearNotice, openDr, err, clearErr, logout }) {
   const guest = lob.kind === "guest", chars = (lob.u && lob.u.chars) || [], MAXC = 3;
   const [ci, setCi] = useState(guest ? 0 : Math.min((lob.u && lob.u.sel) || 0, chars.length));   // personagem escolhido (até 3 por conta; igual a chars.length = novo)
+  const usedOf = idx => new Set(chars.filter((c, i) => c && i !== idx).map(c => c.head));   // cabeças que meus outros personagens já usam (não dá para escolher de novo)
+  const rndHead = idx => { const u = usedOf(idx), f = [...Array(NH).keys()].filter(h => !u.has(h)); return f.length ? f[Math.random() * f.length | 0] : 0; };
   const okB = v => Number.isInteger(+v) && v !== null && v !== "" && +v >= 0 && +v < NB ? +v : 0;   // corpo salvo/recebido fora da lista vira 0
-  const c0 = chars[ci], lk = !guest && !!(c0 && c0.lk), [nm, setNm] = useState(c0 ? c0.nm : ""), [hd, setHd] = useState(c0 ? c0.head : Math.random() * NH | 0), [bd, setBd] = useState(guest ? okB(lsGet("cobras_gb") != null ? lsGet("cobras_gb") : lob.body) : okB(c0 ? c0.body : lob.body));
-  const pick = i => { sfx.click(); clearErr(); setCi(i); const c = chars[i]; setNm(c ? c.nm : ""); setHd(c ? c.head : Math.random() * NH | 0); setBd(c ? okB(c.body) : Math.random() * NB | 0); };
-  const fn = useRef(); const goH = d => { if (lk) return; sfx.click(); setHd(h => (h + d + NH) % NH); }, goB = d => { sfx.click(); setBd(b => { const n = (b + d + NB) % NB; if (guest) lsSet("cobras_gb", String(n)); return n; }); };
+  const c0 = chars[ci], lk = !guest && !!(c0 && c0.lk), [nm, setNm] = useState(c0 ? c0.nm : ""), [hd, setHd] = useState(c0 ? c0.head : rndHead(ci)), [bd, setBd] = useState(guest ? okB(lsGet("cobras_gb") != null ? lsGet("cobras_gb") : lob.body) : okB(c0 ? c0.body : lob.body));
+  const pick = i => { sfx.click(); clearErr(); setCi(i); const c = chars[i]; setNm(c ? c.nm : ""); setHd(c ? c.head : rndHead(i)); setBd(c ? okB(c.body) : Math.random() * NB | 0); };
+  const fn = useRef(); const goH = d => { if (lk) return; sfx.click(); const u = usedOf(ci); setHd(h => { let n = h; for (let t = 0; t < NH; t++) { n = (n + d + NH) % NH; if (!u.has(n)) return n; } return h; }); }, goB = d => { sfx.click(); setBd(b => { const n = (b + d + NB) % NB; if (guest) lsSet("cobras_gb", String(n)); return n; }); };
   fn.current = { goH, goB };
   useEffect(() => {
     const f = e => {
@@ -104,8 +106,9 @@ function Lobby({ lob, send, muted, setMuted, notice, clearNotice, openDr, err, c
   const okName = guest || nm.trim().length >= 2, can = pend || (okName && !full && st !== "end");
   const go = () => { sfx.click(); clearErr(); if (pend) send({ t: "cancel" }); else send(guest ? { t: "play", body: bd } : { t: "play", ci, nm, head: hd, body: bd }); };
   const msg = st === "lobby" ? "Nenhuma partida rolando. Clique em JOGAR: a contagem de 5 segundos começa e a partida inicia." : st === "count" ? "A partida já vai começar! Clique em JOGAR para entrar junto." : st === "play" ? "Partida em andamento! Clique em JOGAR: aparece a contagem de 5 segundos e você entra." : "Partida terminando... aguarde para entrar.";
+  const adm = open && lob.host;
   return (
-    <div className="menu">
+    <div className="menu lby">
       {cdv > 0 && lob.pend !== undefined && (pend || lob.cd > 0) && <div id="cd" key={cdv}><small>{pend && lob.pc > 0 && !(lob.cd > 0) ? "Sua cobra entra em" : "A partida começa em"}</small>{cdv}</div>}
       <div className="tbar">
         <button className="ib" data-tip={muted ? "Ligar o som" : "Desligar o som"} onClick={() => setMuted(toggleMute())}>{muted ? "🔇" : "🔊"}</button>
@@ -114,30 +117,35 @@ function Lobby({ lob, send, muted, setMuted, notice, clearNotice, openDr, err, c
         {fsOk() && <button className="ib" data-tip="Tela cheia" onClick={() => toggleFs()}>⛶</button>}
       </div>
       <VoicePanel />
-      <h1>🐍 Cobras.io online</h1>
+      <h1>🐍 Cobras.io <small>online</small></h1>
       {notice && <div className="notice" onClick={clearNotice}>{notice}</div>}
-      <div className={"big" + (pend ? " red" : "")}>
-        <div className="bh">{guest ? "👤 Convidado" : "🐍 Monte sua cobra"}</div>
-        {!guest && <div className="chs">{Array.from({ length: Math.min(MAXC, chars.length + 1) }, (_, i) => <button key={i} disabled={pend} className={"btn chb" + (ci === i ? " on" : " g")} onClick={() => pick(i)}>{chars[i] ? chars[i].nm : "＋ Novo personagem"}</button>)}</div>}
-        {lob.teams && <div className="tmb" style={lob.tm >= 0 ? { color: TEAMS[lob.tm].c, borderColor: TEAMS[lob.tm].c } : null}>{lob.tm >= 0 ? `Sua equipe: ${TEAMS[lob.tm].e} ${TEAMS[lob.tm].n}` : "Partida por equipe: a equipe é sorteada quando você clicar em JOGAR"}</div>}
-        <Preview hd={guest ? -1 : hd} b={bd} />
-        {!guest && <input className="nm big-nm" maxLength={NAME_MAX} value={nm} placeholder="Nome do personagem (único)" disabled={pend || lk} onChange={e => setNm(e.target.value)} />}
-        {!guest && <div className="s lkn">{lk ? "🔒 Nome e cabeça travados até amanhã (meia-noite, horário de Brasília). O corpo você pode trocar." : "⚠️ Depois que você jogar com este personagem, o nome e a cabeça ficam travados até amanhã. Cada personagem precisa de nome e cabeça diferentes."}</div>}
-        {err && <div className="err">{err}</div>}
-        {!guest && <div className="ba"><button className="ab" disabled={pend || lk} onClick={() => goH(-1)}>‹</button><span className="bn">Cabeça: {HEAD_NAMES[hd]}</span><button className="ab" disabled={pend || lk} onClick={() => goH(1)}>›</button></div>}
-        <div className="ba"><button className="ab" disabled={pend} onClick={() => goB(-1)}>‹</button><span className="bn">Corpo: {BODY_NAMES[bd]}</span><button className="ab" disabled={pend} onClick={() => goB(1)}>›</button></div>
-        {guest && <p className="s">Convidado entra com cabeça de bot e nome sorteado, só escolhe o corpo e não aparece no Ranking do Dia. Entre com o Google para ter até 3 personagens salvos (nome, cabeça e corpo).</p>}
+      <div className="lcol">
+        <div className={"big" + (pend ? " red" : "")}>
+          <div className="bh">{guest ? "👤 Convidado" : "👤 Monte sua cobra"}</div>
+          {!guest && <div className="chs">{Array.from({ length: Math.min(MAXC, chars.length + 1) }, (_, i) => <button key={i} disabled={pend} className={"btn chb" + (ci === i ? " on" : " g")} onClick={() => pick(i)}>{chars[i] ? chars[i].nm : "＋ Novo personagem"}</button>)}</div>}
+          {lob.teams && <div className="tmb" style={lob.tm >= 0 ? { color: TEAMS[lob.tm].c, borderColor: TEAMS[lob.tm].c } : null}>{lob.tm >= 0 ? `Sua equipe: ${TEAMS[lob.tm].e} ${TEAMS[lob.tm].n}` : "Partida por equipe: a equipe é sorteada quando você clicar em JOGAR"}</div>}
+          <Preview hd={guest ? -1 : hd} b={bd} />
+          {!guest && <div className="pnm">{nm.trim() || "Sem nome"}{lk && " 🔒"}</div>}
+          {err && <div className="err">{err}</div>}
+          <div className="sel2">
+            {!guest && <div className="selp"><button className="ab" disabled={pend || lk} onClick={() => goH(-1)}>‹</button><span className="bn"><i>🎨</i>Cabeça:<b>{HEAD_NAMES[hd]}</b></span><button className="ab" disabled={pend || lk} onClick={() => goH(1)}>›</button></div>}
+            <div className="selp"><button className="ab" disabled={pend} onClick={() => goB(-1)}>‹</button><span className="bn"><i>🧩</i>Corpo:<b>{BODY_NAMES[bd]}</b></span><button className="ab" disabled={pend} onClick={() => goB(1)}>›</button></div>
+          </div>
+          {!guest && <input className="nm big-nm" maxLength={NAME_MAX} value={nm} placeholder="Nome do personagem (único)" disabled={pend || lk} readOnly={lk} onChange={e => !lk && setNm(e.target.value)} />}
+          {guest && <p className="s">Convidado entra com cabeça de bot e nome sorteado, só escolhe o corpo e não aparece no Ranking do Dia. Entre com o Google para ter até 3 personagens salvos (nome, cabeça e corpo).</p>}
+        </div>
+        <ModePick lob={lob} send={send} open={open} part="mode" />
+        <ModePick lob={lob} send={send} open={open} part="teams" />
+        <ModePick lob={lob} send={send} open={open} part="terrain" />
+        <div className="inf">ⓘ {adm ? "Você é o admin: só você escolhe o modo, as equipes e o terreno." : "Só o admin (o mais antigo online) escolhe o modo, as equipes e o terreno."}</div>
+        <Board sb={lob.sb} />
+        <p className="s">{full ? "A partida está cheia (10 jogadores). Aguarde alguém sair: o botão libera sozinho." : msg}</p>
+        <p className="s">👥 Online agora: <b>{lob.on}</b> · Na partida: {lob.n} de {lob.mx}</p>
+        <button className="btn go bigo" disabled={!can} onClick={go}>{pend ? "Cancelar" : full ? "Partida cheia" : st === "play" ? "▶ ENTRAR NA PARTIDA" : "▶ JOGAR"}</button>
+        {!pend && <button className="btn g sair" onClick={logout}>{guest ? "← Voltar" : "Sair da conta"}</button>}
+        {!fsOk() && /iPhone|iPod/.test(navigator.userAgent) && !navigator.standalone && <p className="s ios">📱 iPhone: toque em Compartilhar → "Adicionar à Tela de Início" e abra pelo ícone para jogar em tela cheia.</p>}
+        <p className="s kh">← → trocam o corpo{guest ? "" : " e ↑ ↓ trocam a cabeça"}. No jogo: ← → (ou A D) giram a cobra; ↑ ↓ (ou W S) apontam para cima e para baixo. Acelerar: espaço, Shift ou clique.</p>
       </div>
-      <p className="s">{full ? "A partida está cheia (10 jogadores). Aguarde alguém sair: o botão libera sozinho." : msg}</p>
-      <ModePick lob={lob} send={send} open={open} />
-      <div className="acts">
-        <button className="btn go" disabled={!can} onClick={go}>{pend ? "Cancelar" : full ? "Partida cheia" : st === "play" ? "ENTRAR NA PARTIDA" : "JOGAR"}</button>
-        {!pend && <button className="btn g" onClick={logout}>{guest ? "← Voltar" : "Sair da conta"}</button>}
-      </div>
-      <Board sb={lob.sb} />
-      {!fsOk() && /iPhone|iPod/.test(navigator.userAgent) && !navigator.standalone && <p className="s ios">📱 iPhone: toque em Compartilhar → "Adicionar à Tela de Início" e abra pelo ícone para jogar em tela cheia.</p>}
-      <p className="s">👥 Online agora: <b>{lob.on}</b> · Na partida: {lob.n} de {lob.mx}{lob.host ? " · 👑 Você é o admin" : ""}</p>
-      <p className="s">← → trocam o corpo{guest ? "" : " e ↑ ↓ trocam a cabeça"}. No jogo: ← → (ou A D) giram a cobra; ↑ ↓ (ou W S) apontam para cima e para baixo. Acelerar: espaço, Shift ou clique. Mouse e dedo (joystick) também funcionam.</p>
     </div>
   );
 }

@@ -38,6 +38,7 @@ function put(u) {
   u.sub = u._id; users.set(u._id, u);
   if (!u.chars) { u.chars = u.nm ? [{ nm: u.nm, nmKey: u.nmKey, head: u.head ?? 0, body: u.body ?? 0 }] : []; u.last = 0; }   // conta antiga: vira o personagem 1
   u.chars.forEach((c, i) => byName.set(c.nmKey, u._id + "#" + i));
+  { const td = today(); let ch = false; for (const c of u.chars) if (c.nm && !c.lockDay) { c.lockDay = td; ch = true; } if (ch) dirty.set(u._id, u); }   // personagem antigo (sem data de trava): trava a partir de hoje
 }
 const save = u => { dirty.set(u._id, u); };
 
