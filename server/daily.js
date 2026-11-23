@@ -52,7 +52,7 @@ export function record(sub, { ci, name, head, final, best, win, mode, secs, kill
   if (name) d.name = name;
   if (head != null && head >= 0) d.head = head;
   d.kills = (d.kills || 0) + Math.max(0, kills | 0);
-  d.plays++; d.total = Math.round((d.total + (final || 0)) * 10) / 10; d.best = Math.max(d.best, Math.round((best || 0) * 10) / 10); d.secs += Math.max(0, secs | 0);
+  d.plays++; d.total = Math.round((d.total + Math.max(final || 0, best || 0)) * 10) / 10;   // total do dia = soma do melhor tamanho de cada partida (no modo eliminação, a soma das vidas) d.best = Math.max(d.best, Math.round((best || 0) * 10) / 10); d.secs += Math.max(0, secs | 0);
   if (win) { d.wins++; if (mode === "elim") d.winsElim++; else d.winsTime++; }
   touch(d);
 }
