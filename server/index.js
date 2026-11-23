@@ -224,7 +224,7 @@ wss.on("connection", ws => {
     else if (m.t === "leave" && state === "play" && playing) { send(ws, { t: "left" }); leaveGame(ws); }
     else if (m.t === "restart" && state === "end" && me >= 0) reset();
     else if (m.t === "fin" && state === "play" && playing && G) G.finish();
-    else if (m.t === "in" && state === "play" && playing && G) G.input(me, +m.a || 0, !!m.b, !!m.k, m.d === -1 || m.d === 1 ? m.d : 0);
+    else if (m.t === "in" && state === "play" && playing && G) G.input(me, +m.a || 0, !!m.b, !!m.k);
   });
   ws.on("close", () => {
     if (ws.voice) { ws.voice = false; ws.vsp = false; vroster(); }
