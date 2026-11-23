@@ -42,7 +42,15 @@ function put(u) {
 }
 const save = u => { dirty.set(u._id, u); };
 
-export const publicUser = u => u ? { chars: u.chars.map(c => ({ nm: c.nm, head: c.head, body: c.body, lk: c.lockDay === today() ? 1 : 0 })), sel: u.last || 0 } : null;
+// virou o dia (meia-noite em Brasília): os personagens de dias anteriores são APAGADOS (nomes liberam para todos); o jogador monta de novo
+export function fresh(u) {
+  if (!u || !u.chars) return u; const td = today();
+  if (!u.chars.some(c => c.lockDay && c.lockDay !== td)) return u;
+  for (const c of u.chars) if (c.nmKey && byName.get(c.nmKey)?.startsWith(u._id + "#")) byName.delete(c.nmKey);
+  u.chars = u.chars.filter(c => !c.lockDay || c.lockDay === td); u.last = 0;
+  u.chars.forEach((c, i) => byName.set(c.nmKey, u._id + "#" + i)); save(u); return u;
+}
+export const publicUser = u => u ? (fresh(u), { chars: u.chars.map(c => ({ nm: c.nm, head: c.head, body: c.body, lk: c.lockDay === today() ? 1 : 0 })), sel: u.last || 0 }) : null;
 
 // ---------- sessão (token nosso) ----------
 export function makeToken(sub) {
@@ -97,6 +105,7 @@ export function loginDev(name) {   // só com DEV_LOGIN=1
 // ---------- perfil ----------
 // Cada personagem (até 3 por conta) tem nome único (sem diferenciar maiúsculas); cabeça e corpo são livres. idx = qual personagem; idx == chars.length cria um novo.
 export function setProfile(u, { idx, nm, head, body }) {
+  fresh(u);
   if (!Number.isInteger(idx) || idx < 0 || idx > u.chars.length || idx >= MAX_CHARS) return { err: "Personagem inválido." };
   const n = cleanName(nm);
   if (n.length < 2) return { err: "Digite um nome (mínimo 2 letras)." };

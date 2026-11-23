@@ -154,7 +154,7 @@ function leaveGame(ws) {
   if (me >= 0) { slots[me] = null; if (G) G.drop(me, true); notify(ws, { t: "ev", k: "out", i: me, tm: -1 }); }   // saiu de vez: a cobra vira bot sem equipe
   if (!humans().length && !slots.some(w => w && w.pend)) reset(); else bc();
 }
-const applyUser = (ws, ci) => { const u = ws.user; if (!u) return; ws.ci = ci ?? u.last ?? 0; const c = u.chars[ws.ci] || u.chars[0]; if (c) { ws.nm = c.nm; ws.head = c.head; ws.body = c.body; } };   // ci = personagem escolhido da conta
+const applyUser = (ws, ci) => { const u = ws.user; if (!u) return; accounts.fresh(u); ws.ci = ci ?? u.last ?? 0; const c = u.chars[ws.ci] || u.chars[0]; if (c) { ws.nm = c.nm; ws.head = c.head; ws.body = c.body; } };   // ci = personagem escolhido da conta
 const okIdx = (v, n) => Number.isInteger(v) && v >= 0 && v < n;
 
 wss.on("connection", ws => {

@@ -111,10 +111,11 @@ function Lobby({ lob, send, muted, setMuted, notice, clearNotice, openDr, err, c
     <div className="menu lby">
       {cdv > 0 && lob.pend !== undefined && (pend || lob.cd > 0) && <div id="cd" key={cdv}><small>{pend && lob.pc > 0 && !(lob.cd > 0) ? "Sua cobra entra em" : "A partida começa em"}</small>{cdv}</div>}
       <div className="tbar">
-        <button className="ib" data-tip={muted ? "Ligar o som" : "Desligar o som"} onClick={() => setMuted(toggleMute())}>{muted ? "🔇" : "🔊"}</button>
-        <VoiceIcon />
-        <button className="ib" data-tip="Ranking do Dia" onClick={openDr}>📅</button>
-        {fsOk() && <button className="ib" data-tip="Tela cheia" onClick={() => toggleFs()}>⛶</button>}
+        <span className="onl">● Online agora: {lob.on}</span>
+        <button className="ib tx" data-tip={muted ? "Ligar o som" : "Desligar o som"} onClick={() => setMuted(toggleMute())}>{muted ? "Som: desligado" : "Som"}</button>
+        <VoiceIcon txt />
+        <button className="ib tx" data-tip="Ranking do Dia" onClick={openDr}>Ranking</button>
+        {fsOk() && <button className="ib tx" data-tip="Tela cheia" onClick={() => toggleFs()}>Tela cheia</button>}
       </div>
       <VoicePanel />
       <h1>🐍 Cobras.io <small>online</small></h1>
@@ -140,7 +141,7 @@ function Lobby({ lob, send, muted, setMuted, notice, clearNotice, openDr, err, c
         <div className="inf">ⓘ {adm ? "Você é o admin: só você escolhe o modo, as equipes e o terreno." : "Só o admin (o mais antigo online) escolhe o modo, as equipes e o terreno."}</div>
         <Board sb={lob.sb} />
         <p className="s">{full ? "A partida está cheia (10 jogadores). Aguarde alguém sair: o botão libera sozinho." : msg}</p>
-        <p className="s">👥 Online agora: <b>{lob.on}</b> · Na partida: {lob.n} de {lob.mx}</p>
+        <p className="s">Na partida: {lob.n} de {lob.mx}</p>
         <button className="btn go bigo" disabled={!can} onClick={go}>{pend ? "Cancelar" : full ? "Partida cheia" : st === "play" ? "▶ ENTRAR NA PARTIDA" : "▶ JOGAR"}</button>
         {!pend && <button className="btn g sair" onClick={logout}>{guest ? "← Voltar" : "Sair da conta"}</button>}
         {!fsOk() && /iPhone|iPod/.test(navigator.userAgent) && !navigator.standalone && <p className="s ios">📱 iPhone: toque em Compartilhar → "Adicionar à Tela de Início" e abra pelo ícone para jogar em tela cheia.</p>}

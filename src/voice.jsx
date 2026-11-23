@@ -126,12 +126,12 @@ export function VoiceBar() {
 
 // versão só com ícones (tela de escolha, canto superior direito): o texto aparece ao passar o mouse
 const useV = () => useSyncExternalStore(f => { subs.add(f); return () => subs.delete(f); }, () => snap);
-export function VoiceIcon() {
+export function VoiceIcon({ txt }) {
   const v = useV(), b = (e, fn) => { fn(); e.currentTarget.blur(); };
   return !v.on
-    ? <button tabIndex={-1} className={"ib" + (v.talk ? " blink" : "")} data-tip="Entrar na conversa (voz)" onClick={e => b(e, join)}>🎤</button>
-    : <><button tabIndex={-1} className={"ib " + (v.muted ? "mu" : "live")} data-tip={v.muted ? "Microfone mudo (clique para ativar)" : "Microfone ligado (clique para silenciar)"} onClick={e => b(e, toggleMute)}>{v.muted ? "🔇" : "🎙️"}</button>
-      <button tabIndex={-1} className="ib" data-tip="Sair da conversa" onClick={e => b(e, leave)}>✖</button></>;
+    ? <button tabIndex={-1} className={"ib" + (txt ? " tx" : "") + (v.talk ? " blink" : "")} data-tip="Entrar na conversa (voz)" onClick={e => b(e, join)}>{txt ? "Chat por voz" : "🎤"}</button>
+    : <><button tabIndex={-1} className={"ib " + (txt ? "tx " : "") + (v.muted ? "mu" : "live")} data-tip={v.muted ? "Microfone mudo (clique para ativar)" : "Microfone ligado (clique para silenciar)"} onClick={e => b(e, toggleMute)}>{txt ? (v.muted ? "Mic mudo" : "Mic ligado") : v.muted ? "🔇" : "🎙️"}</button>
+      <button tabIndex={-1} className={"ib" + (txt ? " tx" : "")} data-tip="Sair da conversa" onClick={e => b(e, leave)}>{txt ? "Sair do chat" : "✖"}</button></>;
 }
 export function VoicePanel() {
   const v = useV();
