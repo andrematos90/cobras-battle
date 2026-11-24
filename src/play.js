@@ -97,7 +97,7 @@ export function onSnap(m) {
   }
   for (const [x, y, i] of m.pk || []) { spark(x, y, "#ffffff", 24, 7, 36); spark(x, y, "#fbcfe8", 14, 5, 30); if (i === ST.you) sfx.pop(); }
   for (const [x, y, i] of m.ea || []) spark(x, y, SK[ST.sk[i]].c, i === ST.you ? 7 : 4, 4, 22);
-  for (const [x, y, i] of m.dx || []) { boom(x, y, i); crashFx(x, y, i); if (i === ST.you) sfx.death(); }   // a selecionável renasce na hora: o som vem do evento de morte
+  for (const [x, y, i] of m.dx || []) { boom(x, y, i); crashFx(x, y, i); if (i === ST.you) { sfx.death(); ST.hold = { x, y, u: performance.now() + 800 }; } }   // a selecionável renasce na hora: o som vem do evento de morte
   ST.ab = m.ab || 0; for (const [a, b] of m.kf || []) ST.kfl.push([a, b, performance.now()]);   // placar de abates: [quem matou, quem morreu]
   for (const [x, y, i] of m.ht || []) ST.hits.push([x, y, i]);   // alguém bateu no meu corpo (o aviso só aparece se foi fora da tela)
   // buffer de reprodução: guarda os últimos snapshots (k = número do tick do servidor). O cabeçote ST.P (em ticks) anda um pouco atrás do snapshot mais novo
@@ -254,7 +254,9 @@ export function runGame(cv, { hud, sc, dd, fin, tail, bn, vg, send }) {
     }
     const spS = !me && ST.sp >= 0 ? ST.snakes.get(ST.sp) : null;   // morto: acompanha a maior cobra
     const pr = me ? predictMe(me, performance.now()) : null;   // cabeça prevista (null = sem previsão: usa só o servidor)
-    if (me) { cam.x = pr ? pr.pts[0] : me.cur[0]; cam.y = pr ? pr.pts[1] : me.cur[1]; } else if (spS) { cam.x += (spS.cur[0] - cam.x) * .1; cam.y += (spS.cur[1] - cam.y) * .1; } else { cam.x += (ST.x - cam.x) * .1; cam.y += (ST.y - cam.y) * .1; }
+    if (ST.hold && performance.now() > ST.hold.u) ST.hold = null;
+    if (ST.hold) { cam.x = ST.hold.x; cam.y = ST.hold.y; }   // minha batida: segura a câmera no ponto do impacto para o efeito aparecer (senão ela pula para o renascimento)
+    else if (me) { cam.x = pr ? pr.pts[0] : me.cur[0]; cam.y = pr ? pr.pts[1] : me.cur[1]; } else if (spS) { cam.x += (spS.cur[0] - cam.x) * .1; cam.y += (spS.cur[1] - cam.y) * .1; } else { cam.x += (ST.x - cam.x) * .1; cam.y += (ST.y - cam.y) * .1; }
     zk += (Math.min(1, Math.min(VW, VH) / VIEW_SPAN(me ? me.c : spS ? spS.c : 0) / zb()) - zk) * .04;   // afasta/aproxima a câmera suavemente conforme o tamanho da cobra que está sendo vista
     const z = zm(), hw = VW / 2 / z + 80, hh = VH / 2 / z + 80, cx = cam.x, cy = cam.y;
     g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = "#0b1020"; g.fillRect(0, 0, VW, VH);
