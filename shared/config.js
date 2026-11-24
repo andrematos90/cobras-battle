@@ -189,7 +189,7 @@ export const TURN_R0 = 40;     // raio mínimo da curva (px) da cobra pequena. M
 export const TURN_RK = .3;     // quanto o raio da curva cresce com o tamanho da cobra (0 = todas giram igual; maior = cobras grandes fazem curvas mais largas)
 export const EAT_PAD = 30;     // folga (px) para pegar comida além do raio do corpo (antes 20). Mantenha >= TURN_R0 - 10 para a cobra nunca ficar rodando em volta da comida
 export const MAX_DROPS = 140;  // máximo de bolinhas verdes que uma cobra solta ao morrer (o valor total continua igual: cada bolinha vale mais se a cobra era grande)
-export const BODY_MAX = 12000;  // comprimento máximo do corpo (px). Cobra grande fica mais GROSSA, mas o corpo não passa disso; assim o rabo sempre acompanha o movimento. Aumente para cobras mais compridas.
+export const BODY_MAX = 40000;  // comprimento máximo do corpo (px). Cobra grande fica mais GROSSA, mas o corpo não passa disso; assim o rabo sempre acompanha o movimento. Aumente para cobras mais compridas.
 
 // --- cards flutuantes (5 tipos, 1 de cada no mapa; só jogadores pegam) ---
 export const CARDS_POR_TIPO = 3;     // quantos cards de cada tipo (diminui / cresce) existem no mapa
@@ -226,7 +226,8 @@ export const THICK_DIV = 3.5;     // quanto MENOR, mais rápido a cobra engrossa
 export const THICK_CAP = 30;      // até este "tamanho dividido por THICK_DIV" a cobra engrossa rápido (THICK_SLOPE1 por unidade)
 export const THICK_SLOPE1 = 1.5;  // espessura ganha por unidade até o THICK_CAP
 export const THICK_SLOPE2 = .6;   // depois do THICK_CAP ela continua engrossando, mais devagar (era .3). Maior = cobra grande mais grossa
-export const RAD = cm => { const x = cm / THICK_DIV; return 10 + Math.min(x, THICK_CAP) * THICK_SLOPE1 + Math.max(0, x - THICK_CAP) * THICK_SLOPE2; };
+export const THICK_MAX_CM = 800;  // a partir deste tamanho (cm) a cobra PARA de engrossar e só cresce em comprimento
+export const RAD = cm => { const x = Math.min(cm, THICK_MAX_CM) / THICK_DIV; return 10 + Math.min(x, THICK_CAP) * THICK_SLOPE1 + Math.max(0, x - THICK_CAP) * THICK_SLOPE2; };
 
 // --- comprimento do corpo (px) = BODY_BASE + BODY_PER_CM x tamanho (cm), no máximo BODY_MAX. Antes era 4500 + 9 x cm: com 70 cm o corpo já passava de 5000 px ---
 export const BODY_BASE = 800;     // comprimento (px) de uma cobra de 0 cm (menor = cobra mais curta no começo)
