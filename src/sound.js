@@ -21,6 +21,7 @@ export const sfx = {
   win: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, .3, "triangle", .14, 0, i * .15)),
   end: () => [392, 330, 262].forEach((f, i) => tone(f, .35, "triangle", .12, 0, i * .2)),
   click: () => tone(520, .05, "square", .06),
+  crash: () => { tone(180, .18, "sawtooth", .12, -120); tone(70, .25, "square", .09, -30, .02); },
 };
 // som do aviso "bateu no seu rabo": coloque o arquivo rabo.mp3 na pasta public (se não existir, toca o alerta sintético)
 let rb = null, rbBad = false, rbT = 0;

@@ -27,7 +27,7 @@ export function resetStore(m) {
 
 export const CHAO = new Image(); CHAO.src = CHAO_URL;
 // ---- efeitos visuais (só no navegador) ----
-const PS = [], RG = [];
+const PS = [], RG = [], FL = [], CORP = [];   // FL: clarões de impacto | CORP: corpos que se desfazem quando uma cobra morre
 function spark(x, y, col, n, sp, life) {
   for (let k = 0; k < n; k++) { const a = Math.random() * 6.283, v = (.4 + Math.random()) * sp; PS.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, l: life * (.6 + Math.random() * .6), m: life, c: col, s: 2 + Math.random() * 3 }); }
   if (PS.length > 700) PS.splice(0, PS.length - 700);
@@ -39,6 +39,20 @@ function boom(x, y, i) {
   const me = ST.snakes.get(ST.you);
   if (i === ST.you) ST.shake = Math.max(ST.shake, 22);
   else if (me && Math.hypot(me.cur[0] - x, me.cur[1] - y) < 400) ST.shake = Math.max(ST.shake, 9);
+}
+// batida mortal: clarão no ponto do impacto, ondas de choque, estilhaços ao longo do corpo e o corpo se desfazendo (o efeito cresce com a espessura da cobra)
+function crashFx(x, y, i) {
+  const s = ST.snakes.get(i), r = s ? R(s.c) : 12, k = Math.max(1, Math.min(5, r / 22)), now = performance.now();
+  FL.push({ x, y, r: 60 * k, l: 14, m: 14 });
+  RG.push({ x, y, r: 20 * k, l: 34, m: 34, c: "#ffffff" }, { x, y, r: 8 * k, l: 26, m: 26, c: "#fbbf24" });
+  spark(x, y, "#fbbf24", 30 * k | 0, 10, 36); spark(x, y, "#ffffff", 20 * k | 0, 13, 26);
+  if (s && !isCarol(i) && s.cur.length > 3) {
+    const c = SK[ST.sk[i]].c, n = s.cur.length / 2, st = Math.max(1, n / 24 | 0);   // estilhaços na cor da cobra, espalhados pelo corpo
+    for (let j = 0; j < n; j += st) spark(s.cur[2 * j], s.cur[2 * j + 1], c, 3, 5, 34);
+    if (CORP.length > 12) CORP.shift();
+    CORP.push({ pts: Float32Array.from(s.cur), n, tn: s.tn || n, r, sk: ST.sk[i], t0: now });
+  }
+  const d = Math.hypot(x - ST.x, y - ST.y); if (d < 1400) { sfx.crash(); ST.shake = Math.max(ST.shake, i === ST.you ? 20 : 3 + 12 * (1 - d / 1400)); }
 }
 const FALL = new Map();   // sorvetes caindo: posição -> instante em que apareceram
 const EMO = [];   // cada emoji da comida vira um sprite 1 vez (fillText de emoji com escala nova a cada quadro re-rasteriza a fonte colorida = lento)
@@ -83,7 +97,7 @@ export function onSnap(m) {
   }
   for (const [x, y, i] of m.pk || []) { spark(x, y, "#ffffff", 24, 7, 36); spark(x, y, "#fbcfe8", 14, 5, 30); if (i === ST.you) sfx.pop(); }
   for (const [x, y, i] of m.ea || []) spark(x, y, SK[ST.sk[i]].c, i === ST.you ? 7 : 4, 4, 22);
-  for (const [x, y, i] of m.dx || []) { boom(x, y, i); if (i === ST.you) sfx.death(); }   // a selecionável renasce na hora: o som vem do evento de morte
+  for (const [x, y, i] of m.dx || []) { boom(x, y, i); crashFx(x, y, i); if (i === ST.you) sfx.death(); }   // a selecionável renasce na hora: o som vem do evento de morte
   ST.ab = m.ab || 0; for (const [a, b] of m.kf || []) ST.kfl.push([a, b, performance.now()]);   // placar de abates: [quem matou, quem morreu]
   for (const [x, y, i] of m.ht || []) ST.hits.push([x, y, i]);   // alguém bateu no meu corpo (o aviso só aparece se foi fora da tela)
   // buffer de reprodução: guarda os últimos snapshots (k = número do tick do servidor). O cabeçote ST.P (em ticks) anda um pouco atrás do snapshot mais novo
@@ -274,6 +288,11 @@ export function runGame(cv, { hud, sc, dd, fin, tail, bn, vg, send }) {
     for (const sd of ST.shed) { const q = sd.pts[1] || sd.pts[0]; if (Math.abs(q[0] - cx) < hw + 300 && Math.abs(q[1] - cy) < hh + 300) condomShed(g, sd, performance.now()); }
     g.textBaseline = "alphabetic";
     const now2 = performance.now(), VB = [cx - hw, cx + hw, cy - hh, cy + hh];
+    for (let q = CORP.length - 1; q >= 0; q--) {   // corpo da cobra que morreu: some em ~0,7 s, abrindo um pouco
+      const cp = CORP[q], u = (now2 - cp.t0) / 700; if (u >= 1) { CORP.splice(q, 1); continue; }
+      g.globalAlpha = (1 - u) * .75; drawBody(g, cp.pts, cp.n, cp.tn, cp.r * (1 + u * .3), cp.sk, now2, VB, 0);
+    }
+    g.globalAlpha = 1;
     for (const [i, s] of ST.snakes) {
       const car = isCarol(i), pq = pr && i === ST.you ? pr : null, rb = R(s.c), r = car ? rb * CAROL.HEAD : rb, d = SK[ST.sk[i]].d, c = pq ? pq.pts : s.cur, n = c.length / 2, ha = pq ? pq.a : s.a;   // pq: minha cobra com a cabeça prevista
       const im = car ? getImg("c") : i < NSEL && ST.heads[i] >= 0 ? getImg(ST.heads[i]) : null, ph = im && im.sm, hd = car ? Math.max(60, r) : ph ? 50 : r * 1.5;   // hd = raio da cabeça
@@ -303,6 +322,7 @@ export function runGame(cv, { hud, sc, dd, fin, tail, bn, vg, send }) {
       }
     }
     for (const r of RG) { const a = r.l / r.m; g.globalAlpha = a; g.strokeStyle = r.c; g.lineWidth = 5 * a + 1; g.beginPath(); g.arc(r.x, r.y, r.r, 0, 6.2832); g.stroke(); }
+    for (const q of FL) { const a = q.l / q.m; g.globalAlpha = a * .75; g.fillStyle = "#fff"; g.beginPath(); g.arc(q.x, q.y, q.r * (1.5 - a * .6), 0, 6.2832); g.fill(); }   // clarão do impacto
     for (const p of PS) { const a = Math.max(0, p.l / p.m); g.globalAlpha = a; g.fillStyle = p.c; g.beginPath(); g.arc(p.x, p.y, p.s * (a + .3), 0, 6.2832); g.fill(); }
     g.globalAlpha = 1;
     // minimapa
@@ -339,6 +359,7 @@ export function runGame(cv, { hud, sc, dd, fin, tail, bn, vg, send }) {
     for (let k = PS.length - 1; k >= 0; k--) if (PS[k].l <= 0) PS.splice(k, 1);
     for (const r of RG) { r.r += 6 * f; r.l -= f; }
     for (let k = RG.length - 1; k >= 0; k--) if (RG[k].l <= 0) RG.splice(k, 1);
+    for (const q of FL) q.l -= f; for (let k = FL.length - 1; k >= 0; k--) if (FL[k].l <= 0) FL.splice(k, 1);
     if (ST.hurUntil > performance.now()) ST.shake = Math.max(ST.shake, 12);
     ST.shake *= Math.pow(.9, f); if (ST.shake < .3) ST.shake = 0;
     for (const [x, y, i] of ST.hits.splice(0)) { const z = zm(); if (Math.abs(x - cam.x) > VW / 2 / z || Math.abs(y - cam.y) > VH / 2 / z) {   // batida fora da tela

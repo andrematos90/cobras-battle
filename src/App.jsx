@@ -102,14 +102,14 @@ function Lobby({ lob, send, muted, setMuted, notice, clearNotice, openDr, err, c
     window.addEventListener("keydown", f); return () => window.removeEventListener("keydown", f);
   }, [guest]);
   const st = lob.st, pend = lob.pend, full = lob.n >= lob.mx && !pend, open = st === "lobby" || st === "count";
-  const cdv = lob.cd > 0 ? lob.cd : lob.pc;
+  const cdv = lob.pc > 0 ? lob.pc : lob.cd;   // contagem própria (entrar depois) tem prioridade sobre a geral
   const okName = guest || nm.trim().length >= 2, can = pend || (okName && !full && st !== "end");
   const go = () => { sfx.click(); clearErr(); if (pend) send({ t: "cancel" }); else send(guest ? { t: "play", body: bd } : { t: "play", ci, nm, head: hd, body: bd }); };
   const msg = st === "lobby" ? "Nenhuma partida rolando. Clique em JOGAR: a contagem de 5 segundos começa e a partida inicia." : st === "count" ? "A partida já vai começar! Clique em JOGAR para entrar junto." : st === "play" ? "Partida em andamento! Clique em JOGAR: aparece a contagem de 5 segundos e você entra." : "Partida terminando... aguarde para entrar.";
   const adm = open && lob.host;
   return (
     <div className="menu lby">
-      {cdv > 0 && lob.pend !== undefined && (pend || lob.cd > 0) && <div id="cd" key={cdv}><small>{pend && lob.pc > 0 && !(lob.cd > 0) ? "Sua cobra entra em" : "A partida começa em"}</small>{cdv}</div>}
+      {cdv > 0 && lob.pend !== undefined && pend && <div id="cd" key={cdv}><small>{lob.pc > 0 ? "Sua cobra entra em" : "A partida começa em"}</small>{cdv}</div>}
       <div className="tbar">
         <style>{`.lby .tbar{align-items:center;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100vw - 24px)}.lby .ib.tx{width:auto;height:38px;padding:0 12px;font-size:.85rem;font-weight:700;white-space:nowrap}.onl{color:#39ff14;font-weight:800;font-size:.95rem;text-shadow:0 0 6px #39ff14,0 0 14px #39ff14;animation:onlp 1.1s ease-in-out infinite;white-space:nowrap}@keyframes onlp{0%,100%{opacity:1;text-shadow:0 0 6px #39ff14,0 0 14px #39ff14}50%{opacity:.45;text-shadow:0 0 2px #39ff14}}`}</style>
         <span className="onl">● Online agora: {lob.on}</span>

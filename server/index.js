@@ -31,7 +31,7 @@ const send = (ws, o) => ws.readyState === 1 && ws.send(JSON.stringify(o));
 const online = () => [...wss.clients].filter(w => w.readyState === 1);
 const nameOf = w => w.kind === "guest" ? (w.gname || "Convidado") : (w.nm || "Jogador");
 const adm = () => online().find(w => w.kind);   // admin = o mais antigo online que já entrou (conta ou convidado)
-const pendN = () => slots.filter(w => w && w.pend).length;
+const pendN = () => slots.filter(w => w && w.pend && !w.pt).length;   // pt = quem tem contagem própria (clicou em JOGAR com a contagem geral já rolando)
 const lc = x => String(x || "").trim().toLowerCase();
 // convidado ganha um nome sorteado da lista dos bots que ninguém está usando agora
 const ALLBOT = [...new Set([...BOT_NAMES, ...BOT_NAMES2, ...BOT_NAMES_EXTRA])];
@@ -71,7 +71,12 @@ function personalCount(ws) {   // partida em andamento: contagem de 5 s só para
   ws.pt = setInterval(() => {
     if (ws.readyState !== 1) { cancelPend(ws); return; }
     ws.pc--;
-    if (ws.pc <= 0) joinNow(ws); else send(ws, lobbyMsg(ws));
+    if (ws.pc > 0) { send(ws, lobbyMsg(ws)); return; }
+    clearInterval(ws.pt); ws.pt = null; ws.pc = 0;   // a contagem dele acabou
+    if (state === "play") joinNow(ws);   // partida rolando: entra agora
+    else if (state === "lobby") start();   // a contagem geral foi cancelada enquanto a dele corria: a partida começa agora com ele
+    else if (state === "count") bc();   // (nova contagem geral em andamento) ele vira um jogador comum da fila e entra quando ela acabar
+    else joinNow(ws);   // partida terminando: joinNow libera a vaga
   }, 1000);
 }
 function cancelPend(ws) {   // desistiu (ou saiu): libera a vaga
@@ -98,13 +103,14 @@ function reset() {
 }
 
 function start() {
-  for (const w of slots) if (w && w.pend) { stopPend(w); w.tin = Date.now(); }
+  for (const w of slots) if (w && w.pend && !w.pt) { stopPend(w); w.tin = Date.now(); }
   if (!slots.some(Boolean)) return reset();
   if (teams) for (const w of slots) if (w && !(w.team >= 0)) w.team = pickTeam(w);
-  state = "play"; G = createGame(slots.map(w => !!w), slots.map(w => (w ? w.body : null)), mode, slots.map(w => (w ? w.head : null)), slots.map(w => (w ? nameOf(w) : null)), slots.map(w => !!w && w.kind === "guest"), teams ? slots.map(w => (w ? w.team : -1)) : null); tk = 0;
-  inGame.clear(); slots.forEach(w => w && inGame.add(w));
-  slots.forEach((w, i) => w && send(w, startMsg(i)));
-  for (const w of wss.clients) if (!slots.includes(w)) send(w, lobbyMsg(w));
+  const P = slots.map(w => (w && !w.pt ? w : null));   // quem entra agora; quem tem contagem própria (pt) segue no lobby e entra quando a dele acabar
+  state = "play"; G = createGame(P.map(w => !!w), P.map(w => (w ? w.body : null)), mode, P.map(w => (w ? w.head : null)), P.map(w => (w ? nameOf(w) : null)), P.map(w => !!w && w.kind === "guest"), teams ? P.map(w => (w ? w.team : -1)) : null); tk = 0;
+  inGame.clear(); P.forEach(w => w && inGame.add(w));
+  P.forEach((w, i) => w && send(w, startMsg(i)));
+  for (const w of wss.clients) if (!P.includes(w)) send(w, lobbyMsg(w));
   // relógio sem deriva: cada tick é agendado para start + n*TICK (setInterval acumulava atraso e causava trancos no cliente)
   let next = performance.now() + TICK;
   const tick = () => {
@@ -217,7 +223,7 @@ wss.on("connection", ws => {
         applyUser(ws, r.idx);
       } else { if (okIdx(m.body, NB)) ws.body = m.body; ws.head = -1; ws.gname = guestName(); }
       slots[free] = ws; ws.pend = true; ws.team = teams ? pickTeam(ws) : -1;
-      if (state === "lobby") startCount(); else if (state === "play") personalCount(ws); else bc();
+      if (state === "lobby") startCount(); else if (state === "play" || state === "count") personalCount(ws); else bc();
       bc();
     }
     else if (m.t === "cancel" && ws.pend) cancelPend(ws);
